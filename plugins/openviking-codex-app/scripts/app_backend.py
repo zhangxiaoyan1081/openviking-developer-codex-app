@@ -41,11 +41,12 @@ def dispatch(action,value):
   plan=cloud.load('review.json')
   if not plan or plan['hash']!=value['hash']:raise ValueError('清单已更新，请重新查看。')
   plan['confirmed']=True;cloud.save('review.json',plan);return state()
- if action=='list':return cloud.rpc('list',{'uri':cloud.personal_uri(value['uri'])})
+ if action=='list':return cloud.browse_rpc('list',{'uri':cloud.browse_uri(value['uri'])})
+ if action=='tree':return cloud.browse_rpc('tree',{'uri':cloud.browse_uri(value.get('uri','viking://')),'level_limit':2,'node_limit':200})
  if action=='read':
-  uri=cloud.personal_uri(value['uri']);offset=int(value.get('offset',0))
+  uri=cloud.browse_uri(value['uri']);offset=int(value.get('offset',0))
   if offset<0:raise ValueError('读取位置无效。')
-  return cloud.rpc('read',{'uris':[uri],'offset':offset,'limit':200})
+  return cloud.browse_rpc('read',{'uris':[uri],'offset':offset,'limit':200})
  if action=='publish_report':
   r=value
   if not re.fullmatch(r'[a-zA-Z0-9_-]{1,100}',r['id']):raise ValueError('报告标识无效。')

@@ -1,12 +1,13 @@
+import {createExplorer,ROOT} from './explorer.mjs';
 export const escapeHTML=(value='')=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const esc=escapeHTML;
-const ROOTS=['viking://user/default/resources','viking://user/default/memories','viking://user/default/peers'];
+
 export function entries(result,uri){
  const text=(result.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('\n');
  return {text,items:text.split('\n').map(x=>x.match(/^\[(dir|file)\] (.+)$/)).filter(Boolean).map(x=>({dir:x[1]==='dir',name:x[2].replace(/\/$/,''),uri:uri+'/'+x[2].replace(/\/$/,'')}))};
 }
 export function createUI({call,send,expand,panel=false}){
- let state={},page='progress',scopeMode=null,keyEntry=false,choosingScope=false,entryConnection=false,uri=ROOTS[0],revision=0,busy=false,pollTimer,pollCount=0,pollGeneration=0,summaryCard=false;
+ let state={},page='progress',scopeMode=null,keyEntry=false,choosingScope=false,entryConnection=false,uri=ROOT,revision=0,busy=false,pollTimer,pollCount=0,pollGeneration=0,summaryCard=false,explorer;
  const $=s=>document.querySelector(s),main=$('#main'),notice=$('#notice');
  const message=text=>{notice.textContent=text;};
  async function run(fn){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);message('');try{await fn();}catch(e){message(e.message||'操作未完成，请重试。');}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
@@ -71,16 +72,13 @@ export function createUI({call,send,expand,panel=false}){
   const all=state.reports||[];
   main.innerHTML=nav()+`<h1>报告与洞察</h1>${panel?'<p class="muted">在对话中告诉 Codex，即可生成新报告。</p>':'<div class="report-controls"><select id="kind" aria-label="报告类型"><option value="daily">日报</option><option value="weekly">周报</option><option value="progress">工作进展</option><option value="insight">知识洞察</option></select><select id="period" aria-label="时间范围"><option selected>今天</option><option>昨天</option><option>最近 7 天</option><option>最近 30 天</option></select></div><button class="primary" data-action="generate">生成报告</button>'}<div class="stack" style="margin-top:24px">${all.map((r,i)=>`<button class="card" style="text-align:left" data-report="${i}"><div class="tag">${esc(r.period)}</div><h2>${esc(r.title)}</h2><span class="muted">${esc(r.coverage)}</span></button>`).join('')||'<p class="empty">生成的报告会保存在这里。</p>'}</div>`;
  }
- async function directory(){
-  const generation=++revision;const root=ROOTS.find(x=>uri===x||uri.startsWith(x+'/'))||ROOTS[0];const segments=uri.slice(root.length).split('/').filter(Boolean);
-  main.innerHTML=nav()+`<h1>目录</h1><div class="row">${ROOTS.map((u,i)=>`<button data-dir="${u}" aria-pressed="${u===root}">${['资料','记忆','项目上下文'][i]}</button>`).join('')}</div><div class="path"><button data-dir="${root}">${['资料','记忆','项目上下文'][ROOTS.indexOf(root)]}</button>${segments.map((x,i)=>`<span>/</span><button data-dir="${esc(root+'/'+segments.slice(0,i+1).join('/'))}">${esc(x)}</button>`).join('')}</div><div class="directory"><div class="listing" id="listing">正在读取…</div><section class="preview" id="preview"><p class="muted">选择文件查看内容。</p></section></div>`;
-  try{const result=entries(await call('list_directory',{uri}),uri);if(generation!==revision)return;$('#listing').innerHTML=result.items.map(x=>`<button class="entry" data-${x.dir?'dir':'file'}="${esc(x.uri)}">${x.dir?'▸':'·'} ${esc(x.name)}</button>`).join('')||`<p class="muted">${esc(result.text||'目录为空。')}</p>`;}catch(e){if(generation===revision)$('#listing').textContent=e.message;}
+ function directory(){
+  explorer?.dispose();main.innerHTML=nav()+'<div id="explorer"></div>';
+  explorer=createExplorer({host:$('#explorer'),call});return explorer.mount(uri);
  }
- async function read(target,offset=0){
-  const parent=target.slice(0,target.lastIndexOf('/'));
-  if(page!=='files'||!$('#preview')||uri!==parent){uri=parent;page='files';await directory();}
-  const generation=++revision;$('#preview').innerHTML='<p class="muted">正在读取…</p>';
-  try{const r=await call('read_file',{uri:target,offset});if(generation!==revision)return;const text=(r.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('\n');$('#preview').innerHTML=`<h2>${esc(target.split('/').pop())}</h2><pre>${esc(text||'没有更多内容。')}</pre>${text?`<button data-more="${esc(target)}" data-offset="${offset+200}">继续读取</button>`:''}`;}catch(e){if(generation===revision)$('#preview').textContent=e.message;}
+ async function read(target){
+  if(page!=='files'||!$('#explorer')){page='files';await directory();}
+  await explorer.open(target);
  }
  async function refresh(view){const result=await call('get_state',{});state={...state,...result,view:view||state.view};if(state.view==='onboarding')onboarding();else workspace();schedulePoll();}
  function schedulePoll(){
@@ -107,7 +105,7 @@ export function createUI({call,send,expand,panel=false}){
  document.addEventListener('click',event=>{
   const b=event.target.closest('button');if(!b||b.disabled)return;const d=b.dataset;
   if(d.scope){scopeMode=d.scope;onboarding();return;}
-  if(d.page){page=d.page;workspace();return;}
+  if(d.page){explorer?.dispose();page=d.page;workspace();return;}
   if(d.dir){uri=d.dir;page='files';workspace();return;}
   if(d.file){run(()=>read(d.file));return;}
   if(d.more){run(()=>read(d.more,Number(d.offset)));return;}
@@ -143,7 +141,7 @@ export function createUI({call,send,expand,panel=false}){
    }
    if(d.action==='confirm'){const hash=state.plan.hash;await call('confirm_import',{hash});await refresh();await notify(`使用 openviking-codex-app，我已在卡片确认计划 ${hash}。核对 get_state 后同步、读回核对、短暂检查抽取状态。用可用概览或已核对原文恢复摘要，publish_work(onboarding=true) 展示摘要并引导下一步。抽取未完成也不要停在导入结果；不要重复上传。`);}
    if(d.action==='generate'){const labels={daily:'日报',weekly:'周报',progress:'工作进展',insight:'知识洞察'};await notify(`使用 openviking-codex-app，基于 OpenViking 里「${$('#period').value}」的实际工作生成${labels[$('#kind').value]}。读取原文，注明时间范围与缺口，归档读回后 publish_report 直接展示结果。`);}
-   if(d.action==='update')await notify('使用 openviking-codex-app，读取所选工作相关 Session 的最新 Working Memory 和资料，核对实际进展后更新工作卡片，并 show_workspace。');
+   if(d.action==='update')await notify('使用 openviking-codex-app，读取所选工作相关 Session 的最新 Working Memory 和资料，核对实际进展后更新工作卡片，然后打开侧边工作台。');
    if(d.action==='panel')await notify('请调用 open_workspace_panel，并用 open_in_codex 在右侧打开返回的工作台 URL。');
    if(d.action==='refresh'){pollCount=0;await refresh();}
    if(d.action==='expand'){if(expand)await expand();}

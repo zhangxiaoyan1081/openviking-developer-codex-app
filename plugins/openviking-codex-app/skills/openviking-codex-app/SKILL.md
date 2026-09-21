@@ -24,7 +24,7 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 - 新接入未提供 Key：show_onboarding(step="connection")。已提供 Key 且验证通过可跳过重复输入，但继续展示后续卡片。
 - prepare_collaboration 直接展示协作方案卡，已有规则也展示“沿用这个方式 / 调整”。规则应用落盘后再 show_onboarding，进入范围选择。
 - review_import 直接展示清单；用户在卡片确认后，原卡片自动切换到整理进度，不再调用 show_onboarding 新增同一张进度卡，再运行已授权的导入。用户通过文字确认且没有进度卡时才调用一次 show_onboarding。运行较长时让当前执行工具让出控制并更新进度，不等导入全部结束才第一次展示。
-- publish_work 汇总本次范围内的工作后只调用一次，单独展示接续摘要；原同步卡片只更新同步状态，不变成摘要。不要为轮询进度、更新抽取状态或重复相同摘要再次 publish_work/show_onboarding。publish_report 直接展示工作台；无需为了同一结果重复 show。本地保存 Markdown、脚本写工作台都不算已展示；若走脚本但 App 工具可用，必须补一次 show_onboarding 或 show_workspace。
+- publish_work 汇总本次范围内的工作后只调用一次，单独展示接续摘要；原同步卡片只更新同步状态，不变成摘要。不要为轮询进度、更新抽取状态或重复相同摘要再次 publish_work/show_onboarding。publish_report 直接展示工作台；无需为了同一结果重复 show。本地保存 Markdown、脚本写工作台都不算已展示；若走脚本但 App 工具可用，接入阶段补一次 show_onboarding；日常工作台用 open_workspace_panel 并在右侧打开。
 - 正常接入不能因为不再提示卡片缺失而省略卡片调用。卡片失败、文本兜底只表示流程可继续，不算可视化验收通过。
 
 ## 必须完成的流程
@@ -80,7 +80,9 @@ history.py collect <计划文件> 读取每个所选 Session 的最新可用概�
 
 ## 日常工作台与按需报告
 
-- 用户要求工作台时调用 show_workspace。卡片包含工作进展、目录、报告与洞察；无需先开浏览器。用户明确要侧边栏时调用 open_workspace_panel，再通过 open_in_codex 在 right 打开 URL。侧边栏展示数据；生成、接续操作在当前对话卡片完成。CLI 无侧边栏时给本地 URL，但不用于 onboarding。
+- 用户说“打开我的 OpenViking 工作台”、查看工作台或在侧边栏打开时，一律调用 open_workspace_panel（show_workspace 是同义入口，也只返回 URL），随后用 open_in_codex(target={type:"browser",url:<返回地址>}, placement="right") 打开。不调用展示型工具制造工作台卡片，不需要先问是否打开侧边栏。若当前没有注册该工具，用 python3 <plugin-root>/scripts/panel.py start 取得地址后执行同样的 open_in_codex。CLI 没有侧边栏时给本地 URL，不宣称已打开。
+- 工作台的“目录”从 viking:// 根目录按当前公有云 API Key 的实际权限浏览，包含服务返回的共享与用户目录，不限定 resources/memories/peers 三个入口。目录树用 tree，逐层浏览用 list，预览用 read；不触发上传、修改、删除或 VikingBot。浏览范围扩大不改变个人归档规则：新产出仍写入用户已授权的个人目录。
+- 工作台仅打开侧边栏；接入确认、协作选择、导入进度和接续摘要继续保留对话卡片。按需报告发布结果仍可用卡片展示；不要为了“打开工作台”重复发布报告或工作摘要。
 - 用户请求日报、周报、进展汇总、知识洞察，或卡片发回相应请求时，直接做报告。先确定用户时区和实际起止日期，读取范围内的相关资料、历史来源以及 Session 最新可用 Working Memory。日期按业务发生时间；不要把导入时间当工作时间。无相关记录时说明缺口，不生成虚构报告。
 - 报告按适合内容的结构组织：真实完成、进行中、有效决定、下一步；洞察需要证据和对当前工作的意义，不凑建议数量。注明资料覆盖和未验证事项。沿用同事原型的“概览 → 内容 → 来源 → 接续”交互，个人版不生成团队成员关系。
 - 保存完整报告到已知个人项目 resources/.../docs/ 下，遵循用户已有分类。读回核对后调用 publish_report(id, kind, title, period, body, coverage, sources)，由返回结果直接展示工作台。kind 为 progress/daily/weekly/insight；id 在同一份报告更新时保持稳定。sources 包含实际读过的来源与归档报告 URI；不要只给摘要。

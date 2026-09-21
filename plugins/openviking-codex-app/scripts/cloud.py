@@ -74,3 +74,21 @@ def rpc(name,args):
  r=request('/mcp',{'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':name,'arguments':args}}).get('result',{})
  if r.get('isError'):raise CloudError('暂时无法读取这份资料。')
  return r
+
+
+def browse_uri(uri):
+ """Read-only explorer scope. Cloud ACL decides which viking roots are visible."""
+ from urllib.parse import unquote
+ if not isinstance(uri,str) or not uri.startswith('viking://') or len(uri)>8192:
+  raise CloudError('请输入 viking:// 目录或文件路径。')
+ path=unquote(uri[9:])
+ if any(ord(x)<32 for x in path) or any(x in path for x in ('\\','?','#')) or any(x in ('.','..') for x in path.split('/')) or '//' in path:
+  raise CloudError('目录或文件路径无效。')
+ return uri.rstrip('/') if uri!='viking://' else uri
+
+def browse_rpc(name,args):
+ if name not in ('list','tree','read'):raise CloudError('不支持的浏览操作。')
+ for u in args.get('uris',[])+([args['uri']] if 'uri' in args else []):browse_uri(u)
+ r=request('/mcp',{'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':name,'arguments':args}}).get('result',{})
+ if r.get('isError'):raise CloudError('无法读取，请检查路径及访问权限。')
+ return r

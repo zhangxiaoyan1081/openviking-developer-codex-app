@@ -15,7 +15,8 @@ try{
  await client.connect(new StdioClientTransport({...config,env:{HOME:process.env.HOME,PATH:'/usr/bin:/bin',...config.env}}));
  const {tools}=await client.listTools();
  const cardTools=tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name);
- for(const name of ['show_onboarding','prepare_collaboration','review_import','publish_work','publish_report','show_workspace'])assert.ok(cardTools.includes(name),name+' must carry an App resource');
+ for(const name of ['show_onboarding','prepare_collaboration','review_import','publish_work','publish_report'])assert.ok(cardTools.includes(name),name+' must carry an App resource');
+ assert.equal(tools.find(t=>t.name==='show_workspace')._meta,undefined);
  const result=await client.callTool({name:'show_onboarding',arguments:{step:'connection'}});
  assert.ok(!result.isError);assert.equal(result.structuredContent.view,'onboarding');assert.equal(result.structuredContent.connection.ready,false);
  const resource=await client.readResource({uri:'ui://openviking/personal.html'});

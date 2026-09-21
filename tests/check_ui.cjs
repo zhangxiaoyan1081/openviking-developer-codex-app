@@ -30,6 +30,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
      if(window.rejectKey){response({isError:true,content:[{type:'text',text:'连接权限不足，请核对 API Key。'}]});return;}
      v={...window.fixture,connection:{...window.fixture.connection,ready:false,restartRequired:true}};window.fixture=v;
     }
+    if(name==='tree_directory')v={content:[{type:'text',text:'Tree of viking:// (depth <= 2, 1 entries):\nresources/'}]};
     if(name==='list_directory')v={content:[{type:'text',text:'[dir] projects\n[file] report.md'}]};
     if(name==='read_file')v={content:[{type:'text',text:'# 来源正文\n已完成接口核对。\n<script>window.hacked=true</script>'}]};
     response({content:[],structuredContent:v});
@@ -55,7 +56,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'报告与洞察',exact:true}).click();await frame.getByRole('button',{name:'生成报告',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/publish_report/);
  await page.screenshot({path:'.local/acceptance/screenshots/reports-card.png'});
  await frame.getByRole('button',{name:/本周工作回顾/}).click();await frame.getByRole('button',{name:'↗ 接口资料'}).click();await frame.locator('#preview').getByText(/已完成接口核对/).waitFor();assert.equal(await page.frames()[1].evaluate(()=>window.hacked),undefined);
- await frame.getByRole('button',{name:'目录',exact:true}).click();await frame.getByRole('button',{name:'▸ projects'}).click();await frame.getByRole('button',{name:'· report.md'}).click();await frame.locator('#preview pre').waitFor();await page.screenshot({path:'.local/acceptance/screenshots/directory-card.png'});
+ await frame.getByRole('button',{name:'目录',exact:true}).click();await frame.locator('[data-entry]').filter({hasText:'projects'}).click();await frame.locator('[data-entry]').filter({hasText:'report.md'}).click();await frame.locator('#preview .markdown-body').waitFor();await page.screenshot({path:'.local/acceptance/screenshots/directory-card.png'});
  await page.evaluate(()=>window.rejectMessage=true);await render(fixture);await frame.getByRole('button',{name:'从现在开始 →'}).click();await frame.getByText(/选择已保留/).waitFor();
  await page.setViewportSize({width:420,height:700});await page.locator('iframe').evaluate(el=>{el.style.width='360px';el.style.height='610px';});await render(fixture);await page.screenshot({path:'.local/acceptance/screenshots/onboarding-mobile.png'});assert.equal(await page.frames()[1].evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
  // Missing Key asks for credentials; errors preserve the form and do not enter import.

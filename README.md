@@ -10,7 +10,7 @@
 2. 连接验证后，核对长期协作方式：已有同等授权也展示“沿用这个方式 / 调整”，等待选择；新规则展示行为与作用范围，用户采用后保存并读回。保留原有 AGENTS.md 内容，变动时重新核对。
 3. 范围卡片支持近期全部工作、项目、描述范围、从现在开始。不导入也会展示协作方式、实际能力和开始工作/保存资料/稍后入口。
 4. 导入分支先确认清单，再写入并读回、短暂查询抽取状态。可用 Working Memory 或已核对原文形成接续摘要，无需等待所有抽取结束。
-5. 摘要展示目标、上次进展、决定、待办、下一步和来源；与同步清单分开展示，旧同步卡片不会随轮询变成第二张摘要。点击“回顾这项工作”只读取来源、总结进度并建议推进方向，等待用户指令后才执行；不自动处理待办或额外生成文件。新任务接续需要用户明确选择并回收验证结果。日常工作台仍可查看目录、按需报告，或在侧边栏打开。
+5. 摘要展示目标、上次进展、决定、待办、下一步和来源；与同步清单分开展示，旧同步卡片不会随轮询变成第二张摘要。点击“回顾这项工作”只读取来源、总结进度并建议推进方向，等待用户指令后才执行；不自动处理待办或额外生成文件。新任务接续需要用户明确选择并回收验证结果。日常工作台直接在右侧打开，用于查看目录、工作进展和报告。
 
 接入不自动打开浏览器。卡片使用标准 MCP Apps 的 `ui://` 资源、`callServerTool` 和 `sendMessage`。卡片是否展示、消息能否发回、展开方式由宿主支持决定。CLI 或不支持卡片的宿主使用原生选项/文本接续同一流程。
 
@@ -48,7 +48,7 @@ python3 install.py --companion-only
 
 > 在侧边栏打开 OpenViking 工作台。
 
-侧边栏用于查看目录、已发布工作卡片和报告；生成报告与接续工作通过对话中的卡片或直接提问完成。它不会在用户没有发出请求时后台启动另一个 Agent。
+“打开我的 OpenViking 工作台”直接打开右侧面板，不新增工作台卡片。侧边栏用于查看目录、已发布工作卡片和报告；生成报告与接续工作通过对话中的卡片或直接提问完成。它不会在用户没有发出请求时后台启动另一个 Agent。
 
 首次接入使用 [控制台指令](docs/console-connect.md)。公开仓库可通过上面的 `git clone` 获取，无需安装 GitHub CLI。需要 Python 3.10+、Node.js 22+、Git、Codex CLI。分发包已包含打包 JS，用户无需 npm install。
 
@@ -69,6 +69,7 @@ python3 plugins/openviking-codex-app/scripts/panel.py start
 ## 结构与边界
 
 - `src/server.mjs`：标准 MCP Apps 工具和 HTML 资源，stdio 运行；凭据留在 Python 云端客户端中。
+- `src/explorer.mjs`：从 `viking://` 根目录浏览，目录树、路径导航、筛选、隐藏文件、L0/L1、Markdown 预览/源码、JSON 与原生图片预览；大文本每次 200 行追加读取。
 - `src/app.mjs`、`src/ui.mjs`：对话卡片、目录与报告。点击选择保存本地状态，发送消息由当前 Agent 接续，不伪造执行完成。
 - `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离；只有连接明确确认后才能导入。
 - `scripts/history.py`：已授权计划的分批导入、commit、去重和 Working Memory 读取。请求结果未知时不自动重放。
@@ -107,12 +108,12 @@ npm run check:codex-host
 
 `npm test` 运行 Python、stdio MCP、卡片界面与完整集成回归。集成回归使用真实 MCP 服务、Python 状态和 App SDK，只模拟宿主消息桥；覆盖连接入口、规则采用、范围选择、跳过导入、清单确认、进度轮询和接续按钮，使用隔离虚构资料，不上传云端。截图保存至 `.local/acceptance/screenshots/`。GitHub Actions 自动执行同一套测试。
 
-`check:installed` 使用 Codex 解析后的安装配置，在最小 PATH 下启动服务，验证六个展示工具的 UI 资源元数据、连接卡片数据与 HTML 读取。它不代表 Codex 对话中已经显示卡片。原生宿主验收必须另行核对工具调用、真实显示、点击回传与流程推进；HIL、Markdown、工具 JSON 和安装成功不能替代。详细证据与未通过项见 [验收记录](docs/card-acceptance.md)。
+`check:installed` 使用 Codex 解析后的安装配置，在最小 PATH 下启动服务，验证五个展示工具的 UI 资源元数据、连接卡片数据与 HTML 读取。它不代表 Codex 对话中已经显示卡片。原生宿主验收必须另行核对工具调用、真实显示、点击回传与流程推进；HIL、Markdown、工具 JSON 和安装成功不能替代。详细证据与未通过项见 [验收记录](docs/card-acceptance.md)。
 
 ## 参考
 
 - 同事 `ov-distributable`：复用标准 MCP Apps 交互形式，以及“概览、报告内容、来源、接续”的组织思路；未启用旧内置采集。
-- [OpenViking Web Studio](https://github.com/volcengine/OpenViking/tree/main/web-studio)：参考目录导航与分栏预览，独立实现个人范围浏览，不复制其服务端启动流程。
+- [OpenViking Web Studio](https://github.com/volcengine/OpenViking/tree/main/web-studio)：参考目录导航与分栏预览，独立实现当前公有云 Key 有权访问的完整目录浏览；不包含 VikingBot。
 - [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)：标准卡片桥接。
 - 第三方依赖许可见分发插件内 `THIRD_PARTY_NOTICES.txt`。本仓库已公开；尚未指定本项目的开源许可证，公开可访问不等于授予任意再分发许可。
 
@@ -127,4 +128,4 @@ npm run check:codex-host
 ![从今天开始](docs/screenshots/start-today-card.png)
 ![接续摘要](docs/screenshots/continuation-card.png)
 ![报告](docs/screenshots/reports-card.png)
-![目录](docs/screenshots/directory-card.png)
+![侧边工作台目录](docs/screenshots/workspace-sidebar.png)
