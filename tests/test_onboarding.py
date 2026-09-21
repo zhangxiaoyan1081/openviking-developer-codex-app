@@ -32,6 +32,40 @@ class OnboardingTests(unittest.TestCase):
   self.assertEqual((self.root/'AGENTS.md').read_bytes(),before)
   with self.assertRaises(ValueError):onboarding.prepare_rules({'path':str(self.root/'AGENTS.md'),'mode':'reuse','scope':'global','summary':['Use OV']})
 
+ def test_legacy_auto_reuse_requires_visible_choice_and_never_rewrites_rules(self):
+  path=self.root/'AGENTS.md';before=path.read_bytes();modified=path.stat().st_mtime_ns
+  record=cloud.load('collaboration.json');record.pop('confirmedAt');cloud.save('collaboration.json',record)
+  self.assertEqual(onboarding.state()['phase'],'collaboration')
+  self.assertEqual(onboarding.rules_public()['status'],'proposed')
+  with self.assertRaises(ValueError):app_backend.dispatch('scope',{'mode':'skip'})
+  with self.assertRaises(ValueError):onboarding.apply_rules({'revision':record['revision']})
+  onboarding.choose_rules({'revision':record['revision'],'choice':'adopt'})
+  self.assertEqual(onboarding.state()['phase'],'scope')
+  self.assertEqual(path.read_bytes(),before);self.assertEqual(path.stat().st_mtime_ns,modified)
+  self.assertFalse((cloud.folder()/'rule-backups').exists())
+
+ def test_new_connection_reopens_choice_but_resume_does_not(self):
+  app_backend.dispatch('scope',{'mode':'skip'})
+  record=cloud.load('collaboration.json')
+  self.assertEqual(onboarding.state()['phase'],'ready')
+  cloud.save('connection.json',{'verifiedAt':'new-connection-review'})
+  self.assertEqual(onboarding.state()['phase'],'collaboration')
+  self.assertIsNone(app_backend.state()['scope'])
+  onboarding.choose_rules({'revision':record['revision'],'choice':'adopt'})
+  self.assertEqual(onboarding.state()['phase'],'scope')
+  self.assertEqual(onboarding.state()['phase'],'scope')
+  self.assertEqual(cloud.load('scope.json')['mode'],'skip')
+
+ def test_preparing_reuse_waits_for_choice_and_adjust_does_not_activate(self):
+  args={'path':str(self.root/'AGENTS.md'),'mode':'reuse','scope':'global','summary':['确认后的协作方式'],'evidence':'Verified explicit rules'}
+  r=onboarding.prepare_rules(args)
+  self.assertEqual(r['status'],'proposed')
+  onboarding.choose_rules({'revision':r['revision'],'choice':'adjust'})
+  with self.assertRaises(ValueError):app_backend.dispatch('scope',{'mode':'skip'})
+  r=onboarding.prepare_rules(args);self.assertEqual(r['status'],'proposed')
+  onboarding.choose_rules({'revision':r['revision'],'choice':'adopt'})
+  self.assertEqual(onboarding.prepare_rules(args)['status'],'active')
+
  def test_override_change_invalidates_review(self):
   override=self.root/'AGENTS.override.md';override.write_text('Existing exception')
   r=self.prepare(check_files=[str(override)])

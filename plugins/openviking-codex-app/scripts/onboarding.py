@@ -29,13 +29,20 @@ def read(path):
     except FileNotFoundError:
         return ''
 
+def connection_review():
+    return cloud.load('connection.json', {}).get('verifiedAt')
+
 def rules_public():
     record = cloud.load('collaboration.json', {})
     if not record:
         return {'status': 'unreviewed'}
     valid = all(digest(read(p)) == h for p, h in record['files'].items())
+    confirmed = bool(record.get('confirmedAt')) and record.get('connectionReview') == connection_review()
+    status = record['status']
+    if status in ('active', 'accepted') and not confirmed:
+        status = 'proposed'
     return {k: record[k] for k in ('revision', 'summary', 'scope', 'mode', 'status') } | {
-        'status': record['status'] if valid else 'changed'}
+        'status': status if valid else 'changed'}
 
 def prepare_rules(value):
     """Prepare a managed block or record explicitly reviewed existing rules."""
@@ -71,12 +78,13 @@ def prepare_rules(value):
     files = {str(Path(p).expanduser().resolve()): digest(read(Path(p).expanduser().resolve())) for p in value.get('check_files', [])}
     files[str(path)] = digest(original)
     record = {'path': str(path), 'files': files, 'content': proposed, 'summary': summary,
-              'scope': value['scope'], 'mode': mode, 'status': 'active' if mode == 'reuse' else 'proposed',
+              'scope': value['scope'], 'mode': mode, 'status': 'proposed', 'connectionReview': connection_review(),
               'evidence': value.get('evidence', ''), 'updatedAt': now()}
-    record['revision'] = digest(json.dumps({k:record[k] for k in ('files','content','summary','scope','mode')},sort_keys=True,ensure_ascii=False))
+    record['revision'] = digest(json.dumps({k:record[k] for k in ('files','content','summary','scope','mode','connectionReview')},sort_keys=True,ensure_ascii=False))
     previous = cloud.load('collaboration.json', {})
-    if previous.get('revision') == record['revision'] and previous.get('status') in ('accepted','active'):
+    if all(previous.get(k) == record[k] for k in ('files','content','summary','scope','mode','connectionReview')) and previous.get('confirmedAt') and previous.get('status') in ('accepted','active'):
         record['status'] = previous['status']
+        record['confirmedAt'] = previous['confirmedAt']
     cloud.save('collaboration.json', record)
     return rules_public()
 
@@ -86,7 +94,12 @@ def choose_rules(value):
         raise ValueError('协作设置已变化，请重新查看。')
     if value['choice'] not in ('adopt','adjust'):
         raise ValueError('请选择协作方式。')
-    record['status'] = 'accepted' if value['choice'] == 'adopt' else 'adjusting'
+    record['status'] = 'adjusting'
+    if value['choice'] == 'adopt':
+        record['confirmedAt'] = now()
+        record['connectionReview'] = connection_review()
+        # Reuse is a user-facing choice, not another file write.
+        record['status'] = 'active' if record['mode'] == 'reuse' or read(record['path']) == record['content'] else 'accepted'
     cloud.save('collaboration.json', record)
     return rules_public()
 
@@ -150,11 +163,12 @@ def progress():
 def state():
     rules = rules_public()
     scope = cloud.load('scope.json')
+    scope_current = bool(scope) and scope.get('connectionReview') == connection_review()
     plan = cloud.load('review.json')
     record = cloud.load('onboarding.json', {})
-    summary_ready = record.get('summaryFor') == scope_key() and bool(cloud.load('workspace.json',{}).get('works'))
-    phase = 'collaboration' if rules['status'] != 'active' else 'scope' if not scope else 'ready' if scope['mode'] == 'skip' else 'ready' if summary_ready else 'import' if plan and plan.get('confirmed') else 'review' if plan else 'prepare'
-    return {'phase':phase, 'collaboration':rules, 'import':progress(), 'summaryReady':summary_ready,'scopeRevision':scope_key(),
+    summary_ready = scope_current and record.get('summaryFor') == scope_key() and bool(cloud.load('workspace.json',{}).get('works'))
+    phase = 'collaboration' if rules['status'] != 'active' else 'scope' if not scope_current else 'ready' if scope['mode'] == 'skip' else 'ready' if summary_ready else 'import' if plan and plan.get('confirmed') else 'review' if plan else 'prepare'
+    return {'phase':phase, 'collaboration':rules, 'import':progress() if scope_current else None, 'scopeCurrent':scope_current, 'summaryReady':summary_ready,'scopeRevision':scope_key(),
             'choice':record.get('choice'), 'capabilities':record.get('capabilities',{}),
             'nextAction': {'collaboration':'review_rules','scope':'select_scope','prepare':'prepare_import','review':'confirm_import','import':'restore_summary','ready':'choose_work'}[phase]}
 

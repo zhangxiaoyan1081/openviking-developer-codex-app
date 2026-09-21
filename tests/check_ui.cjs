@@ -22,10 +22,10 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
     if(name==='select_scope'){v={...window.fixture,scope:a};if(v.onboarding)v.onboarding={...v.onboarding,phase:a.mode==='skip'?'ready':'prepare',choice:null};window.fixture=v;}
     if(name==='confirm_import')v={plan:{hash:a.hash,confirmed:true}};
     if(name==='get_state')v=window.fixture;
-    if(name==='choose_collaboration'){v={...window.fixture,onboarding:{...window.fixture.onboarding,collaboration:{...window.fixture.onboarding.collaboration,status:a.choice==='adopt'?'accepted':'adjusting'}}};window.fixture=v;}
+    if(name==='choose_collaboration'){v={...window.fixture,onboarding:{...window.fixture.onboarding,collaboration:{...window.fixture.onboarding.collaboration,status:a.choice==='adopt'?(window.fixture.onboarding.collaboration.mode==='reuse'?'active':'accepted'):'adjusting'}}};if(v.onboarding.collaboration.status==='active')v.onboarding.phase='scope';window.fixture=v;}
     if(name==='choose_next'){v={...window.fixture,onboarding:{...window.fixture.onboarding,choice:a.choice}};window.fixture=v;}
     if(name==='import_status')v=window.fixture;
-    if(name==='connect_existing'){v={...window.fixture,connection:{...window.fixture.connection,ready:true}};window.fixture=v;}
+    if(name==='connect_existing'){v={...window.fixture,connection:{...window.fixture.connection,ready:true}};if(v.onboarding)v.onboarding={...v.onboarding,phase:'collaboration',collaboration:{...v.onboarding.collaboration,status:'proposed'}};window.fixture=v;}
     if(name==='connect_key'){
      if(window.rejectKey){response({isError:true,content:[{type:'text',text:'连接权限不足，请核对 API Key。'}]});return;}
      v={...window.fixture,connection:{...window.fixture.connection,ready:false,restartRequired:true}};window.fixture=v;
@@ -97,9 +97,12 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'稍后',exact:true}).click();
  await frame.getByText('设置已保留，随时可以开始。',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>fixture.onboarding.choice),'later');
- // Explicit reconnect must not jump to a previous completed onboarding.
+ // Explicit reconnect must show collaboration even for existing authorized rules.
  await render({...fixture,entry:'connection',connection:{...fixture.connection,ready:false},scope:{mode:'skip'},onboarding:{...flow,phase:'ready',choice:'later'}});
  await frame.getByRole('button',{name:'使用当前连接',exact:true}).click();
+ await frame.getByRole('button',{name:'沿用这个方式',exact:true}).waitFor();
+ assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
+ await frame.getByRole('button',{name:'沿用这个方式',exact:true}).click();
  await frame.getByText('带上过去的工作',{exact:true}).waitFor();
  await frame.getByText('沿用已有协作方式。',{exact:true}).click();
  await frame.getByText('参考相关记忆和资料',{exact:true}).waitFor();

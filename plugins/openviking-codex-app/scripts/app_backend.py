@@ -8,7 +8,8 @@ def state():
  c=connection.status()
  empty={'configured':c['canReuse'],'connection':c,'scope':None,'plan':None,'reports':[],'workspace':{'works':[]}}
  if not c['ready']:return empty
- return {**empty,'scope':cloud.load('scope.json'),'plan':cloud.load('review.json'),'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':onboarding.state()}
+ flow=onboarding.state()
+ return {**empty,'scope':cloud.load('scope.json') if flow['scopeCurrent'] else None,'plan':cloud.load('review.json') if flow['scopeCurrent'] else None,'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':flow}
 
 def dispatch(action,value):
  if action=='state':return state()
@@ -29,7 +30,7 @@ def dispatch(action,value):
  if action=='publish_work':workspace.publish(value);return state()
  if action=='scope':
   if onboarding.rules_public()['status']!='active':raise ValueError('请先核对协作方式。')
-  selected=panel.scope(value);cloud.save('scope.json',selected);cloud.save('review.json',None)
+  selected={**panel.scope(value),'connectionReview':onboarding.connection_review()};cloud.save('scope.json',selected);cloud.save('review.json',None)
   cloud.save('active-import.json',None);cloud.save('onboarding.json',{k:v for k,v in cloud.load('onboarding.json',{}).items() if k=='capabilities'})
   return state()
  if action=='review':

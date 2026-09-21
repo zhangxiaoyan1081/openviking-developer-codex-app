@@ -22,7 +22,7 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 桌面端先查找并调用当前注册的 show_onboarding；技能文件可读不等于 App 工具已加载，但也不能未经检查就认定工具不存在。工具可用时优先可视化卡片，不以 HIL 单选、Markdown 或脚本输出代替。只有工具确实不可调用或当前宿主无 Apps 支持时才用对话兜底，并遵守下文的简洁提示规则。
 
 - 新接入未提供 Key：show_onboarding(step="connection")。已提供 Key 且验证通过可跳过重复输入，但继续展示后续卡片。
-- prepare_collaboration 直接展示协作方案或沿用后的范围卡。规则应用落盘后再 show_onboarding，进入范围选择。
+- prepare_collaboration 直接展示协作方案卡，已有规则也展示“沿用这个方式 / 调整”。规则应用落盘后再 show_onboarding，进入范围选择。
 - review_import 直接展示清单；确认后立即 show_onboarding 展示整理阶段，再运行已授权的导入。运行较长时让当前执行工具让出控制并更新进度，不等导入全部结束才第一次展示。
 - publish_work 直接展示接续摘要，publish_report 直接展示工作台；无需为了同一结果重复 show。本地保存 Markdown、脚本写工作台都不算已展示；若走脚本但 App 工具可用，必须补一次 show_onboarding 或 show_workspace。
 - 正常接入不能因为不再提示卡片缺失而省略卡片调用。卡片失败、文本兜底只表示流程可继续，不算可视化验收通过。
@@ -37,10 +37,10 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 
 读取实际生效的用户级/项目级 AGENTS.md、AGENTS.override.md，检查覆盖与已有授权。参考 [长期规则模板](references/ongoing-rules.md)，不要把当前用户专属目录约定复制给所有用户。
 
-- 已有同等明确授权：prepare_collaboration(mode="reuse", path, scope, summary, evidence, check_files)，记录实际采用的文件与简短行为摘要，显示“沿用已有协作方式”；不用重复批准，也不重复写文件。evidence 说明实际规则与授权，不能只写“检测到文件”。
+- 已有同等明确授权：prepare_collaboration(mode="reuse", path, scope, summary, evidence, check_files)，记录文件与简短行为摘要，展示作用范围和“沿用这个方式 / 调整”，等待本次选择后再进入历史范围。选择沿用不会重复写文件；不得把检测到旧规则当成本次已确认。evidence 说明实际规则与授权，不能只写“检测到文件”。
 - 缺少规则或需要改变：prepare_collaboration(mode="merge", path, scope, summary, block, check_files)，准备受管理块并 show_onboarding。summary 必须准确概括 block 里的检索、保存范围、反馈与全局/项目作用域。保留原有未管理规则，不用追加的块掩盖冲突；发生语义冲突先由用户决定具体差异。
-- 用户在卡片采用后读取 revision，执行 onboarding.py apply_rules（stdin 传 revision）。它检查确认、文件 revision、备份、精确合并并读回；成功 active 后继续历史选择。文字模式在用户已明确批准具体方案时以同一 revision 执行 choose_rules(choice="adopt")，再 apply_rules。不要用写 JSON 的方式伪造采用。
-- 调整时只问需要变化的范围或行为，再重做方案。已有授权跨轮有效，不为重复走流程索取相同批准。
+- 用户在卡片选择后读取实际状态：reuse 已 active 时直接继续，无需 apply_rules；需要修改且状态 accepted 时，执行 onboarding.py apply_rules（stdin 传 revision）。它检查确认、文件 revision、备份、精确合并并读回；成功 active 后继续历史选择。文字模式也先展示摘要并提供沿用/调整选项；用户明确选择后执行 choose_rules(choice="adopt")，仅 accepted 时再 apply_rules。不要用写 JSON 的方式伪造采用。
+- 调整时只问需要变化的范围或行为，再重做方案。同一次接入已确认的方式在恢复流程时继续有效，不重复提问；新的连接确认后重新展示协作方式选择。已有文件授权不等于已完成本次产品引导。
 - 文件修改后会变成 changed，先核对再沿用/合并。check_files 包含实际生效的覆盖文件；记录项目作用域时，不能宣称全局已启用。日常换项目仍须核对新项目的覆盖规则。
 - 规则文件不控制 Hook。用户希望只手动使用或停止自动保存时，先检查官方真实采集开关，落实之后才说明已停；不能只改 AGENTS.md 冒充关闭采集。
 

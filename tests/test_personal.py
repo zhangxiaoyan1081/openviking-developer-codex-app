@@ -11,7 +11,8 @@ class PersonalTests(unittest.TestCase):
   cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'test-only'})
   cloud.save('connection.json',{'verifiedAt':'2026-09-21T00:00:00Z'})
   rules=self.root/'AGENTS.md';rules.write_text('Use OV for relevant context and save approved deliverables.')
-  onboarding.prepare_rules({'path':str(rules),'mode':'reuse','scope':'global','summary':['沿用已有规则'],'evidence':'Fixture explicit existing authorization'})
+  prepared=onboarding.prepare_rules({'path':str(rules),'mode':'reuse','scope':'global','summary':['沿用已有规则'],'evidence':'Fixture explicit existing authorization'})
+  onboarding.choose_rules({'revision':prepared['revision'],'choice':'adopt'})
  def tearDown(self):
   for p in reversed(self.patches):p.stop()
   self.tmp.cleanup()

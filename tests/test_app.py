@@ -15,6 +15,7 @@ class AppTests(unittest.TestCase):
   self.assertTrue(app_backend.state()['connection']['ready'])
   self.assertEqual(app_backend.state()['workspace']['works'][0]['title'],'existing work')
  def test_review_confirmation_stale_hash(self):
+  app_backend.dispatch('scope',{'mode':'recent','days':30})
   p=self.root/'plan.json';plan=self.plan();p.write_text(json.dumps(plan))
   with patch.object(cloud,'request') as request:
    preview=app_backend.dispatch('review',{'path':str(p),'coverage':'测试来源 1 个会话'})['plan']

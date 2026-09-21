@@ -42,7 +42,7 @@ export function createUI({call,send,expand,panel=false}){
  function collaboration(){
   const r=state.onboarding.collaboration;
   if(['unreviewed','changed','adjusting'].includes(r.status)){main.innerHTML=`<h1>今后怎样协作</h1><p>先核对你的协作设置，再带入已有工作。</p><button class="primary" data-action="settings">${r.status==='changed'?'重新核对设置':'检查协作设置'}</button>`;return;}
-  main.innerHTML=`<h1>今后这样协作</h1><div class="stack">${r.summary.map(x=>`<p>${esc(x)}</p>`).join('')}</div><p class="muted">${r.scope==='global'?'适用于所有 Codex 项目':'适用于当前项目'}</p>${r.status==='accepted'?'<p>正在保存协作设置…</p><button data-action="apply-rules">继续</button>':'<div class="actions"><button class="primary" data-rules="adopt">采用这个方式</button><button data-rules="adjust">调整</button></div>'}`;
+  main.innerHTML=`<h1>今后这样协作</h1><div class="stack">${r.summary.map(x=>`<p>${esc(x)}</p>`).join('')}</div><p class="muted">${r.scope==='global'?'适用于所有 Codex 项目':'适用于当前项目'}</p>${r.status==='accepted'?'<p>正在保存协作设置…</p><button data-action="apply-rules">继续</button>':`<div class="actions"><button class="primary" data-rules="adopt">${r.mode==='reuse'?'沿用这个方式':'采用这个方式'}</button><button data-rules="adjust">调整</button></div>`}`;
  }
  function progress(){
   const job=state.onboarding?.import;if(!job)return '';
@@ -110,9 +110,9 @@ export function createUI({call,send,expand,panel=false}){
   run(async()=>{
    if(d.work!==undefined){const w=state.workspace.works[Number(d.work)];if(state.onboarding?.phase==='ready')await call('choose_next',{choice:'continue'});await notify(`使用 openviking-codex-app 接续「${w.title}」。下一步：${w.next}。先读取这些来源核对最新状态：${w.sources.map(x=>x.uri).join('、')}。在当前任务继续。`);}
    if(d.correct!==undefined){const w=state.workspace.works[Number(d.correct)];await notify(`修正「${w.title}」的工作摘要，请问我哪里需要调整。`);}
-   if(d.rules){state={...state,...await call('choose_collaboration',{revision:state.onboarding.collaboration.revision,choice:d.rules})};onboarding();await notify(d.rules==='adopt'?'使用 openviking-codex-app，按已确认 revision 执行 onboarding.py apply_rules，读回核对，再继续选择历史范围。':'使用 openviking-codex-app，调整已展示的协作方式，先问我需要改变什么。');schedulePoll();}
+   if(d.rules){state={...state,...await call('choose_collaboration',{revision:state.onboarding.collaboration.revision,choice:d.rules})};onboarding();if(state.onboarding.collaboration.status!=='active')await notify(d.rules==='adopt'?'使用 openviking-codex-app，按已确认 revision 执行 onboarding.py apply_rules，读回核对，再继续选择历史范围。':'使用 openviking-codex-app，调整已展示的协作方式，先问我需要改变什么。');schedulePoll();}
    if(d.next){state={...state,...await call('choose_next',{choice:d.next})};ready();await notify(d.next==='later'?'OpenViking 设置先保留，我稍后开始。不要上传其他历史或创建新任务。':d.next==='save'?'使用 openviking-codex-app，帮我保存一份资料，先问我要保存的内容。':'使用 openviking-codex-app，从现在开始一项工作，问我这次的目标，按已确认协作方式使用 OpenViking。');}
-   if(d.action==='settings')await notify('使用 openviking-codex-app，读取实际生效的 AGENTS.md 与已有授权，prepare_collaboration 准备协作方式。同等已授权规则直接沿用；新增或变更先展示摘要让我确认，再继续 onboarding。');
+   if(d.action==='settings')await notify('使用 openviking-codex-app，读取实际生效的 AGENTS.md 与已有授权，prepare_collaboration 准备协作方式。已有规则也先展示行为摘要和作用范围，让我选择沿用或调整；新增或变更先确认，再继续 onboarding。');
    if(d.action==='apply-rules')await notify('使用 openviking-codex-app，完成已确认协作规则的保存与读回，然后继续 onboarding。');
    if(d.action==='restore')await notify('使用 openviking-codex-app，继续已确认的导入；读取可用概览或已核对的原文，恢复工作摘要、publish_work(onboarding=true) 直接展示摘要。不要等待全部抽取结束，也不要重复上传。');
    if(d.action==='prepare')await notify('使用 openviking-codex-app，按 get_state 已选范围准备可访问历史清单，review_import 展示，先不要上传。');
@@ -124,7 +124,7 @@ export function createUI({call,send,expand,panel=false}){
     message('正在验证连接…');
     const result=await call(d.action==='connect-key'?'connect_key':'connect_existing',args);
     state={...state,...result};keyEntry=false;choosingScope=entryConnection&&state.connection?.ready&&state.onboarding?.collaboration?.status==='active';entryConnection=false;message('');if(state.view==='onboarding')onboarding();else workspace();
-    if(state.view==='onboarding'&&state.connection?.ready&&state.onboarding?.phase==='collaboration')await notify('使用 openviking-codex-app，连接已验证，检查已有协作规则和授权，prepare_collaboration 后继续 onboarding。');
+    if(state.view==='onboarding'&&state.connection?.ready&&state.onboarding?.phase==='collaboration'&&['unreviewed','changed','adjusting'].includes(state.onboarding.collaboration.status))await notify('使用 openviking-codex-app，连接已验证，检查已有协作规则和授权，prepare_collaboration 后继续 onboarding。');
     return;
    }
    if(d.action==='reload'){location.reload();return;}
