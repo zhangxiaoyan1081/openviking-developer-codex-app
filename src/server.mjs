@@ -32,7 +32,7 @@ function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}
  if(view)registerAppTool(server,name,config,handler);
  else server.registerTool(name,config,handler);
 }
-tool('show_onboarding','展示接入卡片：先确认或配置连接，验证成功后选择历史范围。不要为 onboarding 打开浏览器。',{},'state',{view:'onboarding',readOnly:true});
+tool('show_onboarding','恢复接入卡片当前阶段：连接、协作方式、历史范围、整理进度、接续摘要。不要为 onboarding 打开浏览器。',{},'state',{view:'onboarding',readOnly:true});
 tool('show_workspace','展示个人工作台：进展、目录、日报周报和知识洞察。',{},'state',{view:'workspace',readOnly:true});
 tool('get_state','读取用户选择、清单确认及工作台状态。',{},'state',{readOnly:true});
 tool('connect_existing','用户选择使用本机连接后验证并确认，不回显凭据。',{revision:z.string()},'connect_existing',{appOnly:true});
@@ -40,6 +40,11 @@ tool('connect_key','验证用户在卡片输入的 Key，成功后更新官方�
 tool('select_scope','保存同步范围；不上传。用户点击后由 App 发消息请 Agent 准备清单。',{mode:z.enum(['recent','projects','description','skip']),days:z.union([z.literal(7),z.literal(30),z.literal(90)]).optional(),text:z.string().max(2000).optional()},'scope',{appOnly:true});
 tool('review_import','读取本地历史计划，展示完整待同步清单，用户确认之前不得上传。coverage 必须说明覆盖范围及缺口。',{path:z.string(),coverage:z.string().min(1)},'review',{view:'onboarding'});
 tool('confirm_import','用户点击确认后保存清单 hash；不自动上传。',{hash:z.string().regex(/^[a-f0-9]{64}$/)},'confirm',{appOnly:true});
+tool('prepare_collaboration','检查实际生效 AGENTS.md 和覆盖规则后准备协作设置。reuse 仅用于已有同等授权并提供 evidence；merge 只准备管理块，用户确认后由 Agent 调用 onboarding.py apply_rules 保存。',{path:z.string(),mode:z.enum(['reuse','merge']),scope:z.enum(['global','project']),summary:z.array(z.string().min(1)).min(1).max(8),block:z.string().optional(),evidence:z.string().optional(),check_files:z.array(z.string()).optional()},'rules_prepare');
+tool('choose_collaboration','用户选择采用或调整已展示的协作方式。',{revision:z.string(),choice:z.enum(['adopt','adjust'])},'rules_choose',{appOnly:true});
+tool('import_status','查询当前已确认导入的抽取状态；仅检查状态，不重新导入。',{jobId:z.string().regex(/^[a-f0-9]{64}$/)},'import_status',{readOnly:true});
+tool('choose_next','保存用户在接续摘要或使用说明中选择的下一步。',{choice:z.enum(['start','save','later','continue','correct'])},'next',{appOnly:true});
+tool('publish_work','发布已经核对并归档读回的接续摘要。onboarding=true 时传入准备摘要前 get_state.onboarding.scopeRevision，且目标、进展、下一步、覆盖和来源必填，随后 show_onboarding。',{onboarding:z.boolean().default(false),scopeRevision:z.string().optional(),works:z.array(z.object({id:z.string(),title:z.string(),project:z.string().optional(),goal:z.string().optional(),state:z.string(),decisions:z.string().optional(),openIssues:z.string().optional(),next:z.string(),coverage:z.string(),sources:z.array(z.object({label:z.string(),uri:z.string()})).min(1)}))},'publish_work');
 tool('list_directory','列出个人空间目录。',{uri:z.string()},'list',{appOnly:true,readOnly:true});
 tool('read_file','读取个人资料，每次最多 200 行。',{uri:z.string(),offset:z.number().int().nonnegative().default(0)},'read',{appOnly:true,readOnly:true});
 tool('publish_report','将依据真实资料生成并已在 OV 归档读回的报告发布到个人工作台。不能把模板或推测当成实际进展。',{id:z.string(),kind:z.enum(['progress','daily','weekly','insight']),title:z.string(),period:z.string(),body:z.string().max(200000),coverage:z.string(),sources:z.array(z.object({label:z.string(),uri:z.string()})).min(1)},'publish_report');

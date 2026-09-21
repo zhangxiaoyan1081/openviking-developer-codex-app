@@ -5,13 +5,14 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { mkdtemp,rm,cp,mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejection',async()=>{
  const temp=await mkdtemp(path.join(os.tmpdir(),'ov-mcp-'));
  const client=new Client({name:'test',version:'1.0.0'});
  const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/openviking-codex-app/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
  try{
   await client.connect(transport);
-  const {tools}=await client.listTools();assert.equal(tools.length,12);
+  const {tools}=await client.listTools();assert.equal(tools.length,17);
   assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['review_import','show_onboarding','show_workspace']);
   for(const name of ['get_state','publish_report','open_workspace_panel'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
   const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
@@ -23,6 +24,29 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
   assert.equal(resource.contents[0].mimeType,'text/html;profile=mcp-app');assert.match(resource.contents[0].text,/带上过去的工作/);
   assert.ok(!resource.contents[0].text.includes('test-only'));
   const invalid=await client.callTool({name:'select_scope',arguments:{mode:'recent',days:120}});assert.equal(invalid.isError,true);
+ }finally{await client.close();await rm(temp,{recursive:true,force:true});}
+});
+
+test('MCP cards and stdin fallback share rule approval, readback and skip continuation',async()=>{
+ const temp=await mkdtemp(path.join(os.tmpdir(),'ov-flow-'));
+ const scripts=path.resolve('plugins/openviking-codex-app/scripts');
+ const env={PATH:process.env.PATH,HOME:temp,TMPDIR:temp};
+ const python=(code)=>execFileSync('python3',['-c',code],{env,encoding:'utf8'});
+ python(`import sys;sys.path.insert(0,${JSON.stringify(scripts)});import cloud;cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'fixture-key'});cloud.save('connection.json',{'verifiedAt':'2026-09-21T00:00:00Z'})`);
+ const client=new Client({name:'flow-test',version:'1'});
+ try{
+  await client.connect(new StdioClientTransport({command:process.execPath,args:[path.join(scripts,'app_server.mjs')],env}));
+  const initial=await client.callTool({name:'get_state',arguments:{}});assert.equal(initial.structuredContent.onboarding.phase,'collaboration');
+  const draft=await client.callTool({name:'prepare_collaboration',arguments:{path:path.join(temp,'AGENTS.md'),mode:'merge',scope:'global',summary:['保存批准的重要产出'],block:'Save approved deliverables.'}});
+  const revision=draft.structuredContent.onboarding.collaboration.revision;
+  const blocked=await client.callTool({name:'select_scope',arguments:{mode:'skip'}});assert.equal(blocked.isError,true);
+  await client.callTool({name:'choose_collaboration',arguments:{revision,choice:'adopt'}});
+  const applied=JSON.parse(execFileSync('python3',[path.join(scripts,'onboarding.py'),'apply_rules'],{env,input:JSON.stringify({revision}),encoding:'utf8'}));assert.equal(applied.status,'active');
+  const skip=await client.callTool({name:'select_scope',arguments:{mode:'skip'}});
+  assert.equal(skip.structuredContent.onboarding.phase,'ready');assert.equal(skip.structuredContent.onboarding.choice,null);
+  const next=await client.callTool({name:'choose_next',arguments:{choice:'later'}});assert.equal(next.structuredContent.onboarding.choice,'later');
+  const persisted=JSON.parse(execFileSync('python3',[path.join(scripts,'app_backend.py'),'state'],{env,input:'{}',encoding:'utf8'}));assert.equal(persisted.onboarding.choice,'later');
+  assert.ok(!JSON.stringify(next).includes('fixture-key'));
  }finally{await client.close();await rm(temp,{recursive:true,force:true});}
 });
 

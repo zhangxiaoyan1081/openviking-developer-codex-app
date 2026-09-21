@@ -2,13 +2,13 @@
 import json,sys,re
 from pathlib import Path
 from datetime import datetime,timezone
-import cloud,history,panel,connection
+import cloud,history,panel,connection,onboarding,workspace
 
 def state():
  c=connection.status()
  empty={'configured':c['canReuse'],'connection':c,'scope':None,'plan':None,'reports':[],'workspace':{'works':[]}}
  if not c['ready']:return empty
- return {**empty,'scope':cloud.load('scope.json'),'plan':cloud.load('review.json'),'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[])}
+ return {**empty,'scope':cloud.load('scope.json'),'plan':cloud.load('review.json'),'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':onboarding.state()}
 
 def dispatch(action,value):
  if action=='state':return state()
@@ -17,17 +17,24 @@ def dispatch(action,value):
  if action=='connect_key':
   connection.select(revision=value['revision'],api_key=value['api_key']);return state()
  connection.require_ready()
+ if action=='rules_prepare':onboarding.prepare_rules(value);return state()
+ if action=='rules_choose':onboarding.choose_rules(value);return state()
+ if action=='next':onboarding.choose_next(value);return state()
+ if action=='import_status':history.poll_job(value['jobId']);return state()
+ if action=='publish_work':workspace.publish(value);return state()
  if action=='scope':
+  if onboarding.rules_public()['status']!='active':raise ValueError('请先核对协作方式。')
   selected=panel.scope(value);cloud.save('scope.json',selected);cloud.save('review.json',None)
-  return {'scope':selected}
+  cloud.save('active-import.json',None);cloud.save('onboarding.json',{k:v for k,v in cloud.load('onboarding.json',{}).items() if k=='capabilities'})
+  return state()
  if action=='review':
   plan=history.validate(json.loads(Path(value['path']).read_text()))
   preview={'hash':history.digest(plan),'coverage':value['coverage'],'items':[{'title':s.get('title',s['source_id']),'project':s.get('project',''),'source':s['source_id'],'messages':len(s.get('messages',[])),'reuse':bool(s.get('existing_session_id'))} for s in plan['sessions']], 'confirmed':False}
-  cloud.save('review.json',preview);return {'plan':preview}
+  cloud.save('review.json',preview);return state()
  if action=='confirm':
   plan=cloud.load('review.json')
   if not plan or plan['hash']!=value['hash']:raise ValueError('清单已更新，请重新查看。')
-  plan['confirmed']=True;cloud.save('review.json',plan);return {'plan':plan}
+  plan['confirmed']=True;cloud.save('review.json',plan);return state()
  if action=='list':return cloud.rpc('list',{'uri':cloud.personal_uri(value['uri'])})
  if action=='read':
   uri=cloud.personal_uri(value['uri']);offset=int(value.get('offset',0))

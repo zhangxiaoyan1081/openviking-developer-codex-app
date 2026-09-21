@@ -18,9 +18,12 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
    if(m.method==='ui/notifications/initialized'&&!window.suppressResult)event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:window.fixture}},'*');
    if(m.method==='tools/call'){
     window.requests.push(m.params);let v={};const {name,arguments:a}=m.params;
-    if(name==='select_scope')v={scope:a};
+    if(name==='select_scope'){v={...window.fixture,scope:a};if(v.onboarding)v.onboarding={...v.onboarding,phase:a.mode==='skip'?'ready':'prepare',choice:null};window.fixture=v;}
     if(name==='confirm_import')v={plan:{hash:a.hash,confirmed:true}};
     if(name==='get_state')v=window.fixture;
+    if(name==='choose_collaboration'){v={...window.fixture,onboarding:{...window.fixture.onboarding,collaboration:{...window.fixture.onboarding.collaboration,status:a.choice==='adopt'?'accepted':'adjusting'}}};window.fixture=v;}
+    if(name==='choose_next'){v={...window.fixture,onboarding:{...window.fixture.onboarding,choice:a.choice}};window.fixture=v;}
+    if(name==='import_status')v=window.fixture;
     if(name==='connect_existing'){v={...window.fixture,connection:{...window.fixture.connection,ready:true}};window.fixture=v;}
     if(name==='connect_key'){
      if(window.rejectKey){response({isError:true,content:[{type:'text',text:'连接权限不足，请核对 API Key。'}]});return;}
@@ -46,7 +49,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  assert.equal(await page.evaluate(()=>requests.find(x=>x.name==='select_scope').arguments.days),90);assert.equal(await page.evaluate(()=>messages.length),1);assert.match(await page.evaluate(()=>messages[0].content[0].text),/先不要上传/);
  const render=async value=>page.evaluate(value=>{window.fixture=value;document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:value}},'*');},value);
  await render({...fixture,plan:{hash:'a'.repeat(64),coverage:'最近三个月 · 2 个项目',confirmed:false,items:[{title:'接口设计',project:'OpenViking',messages:12},{title:'网站改版',project:'Website',reuse:true}]}});
- await frame.getByRole('button',{name:'确认同步',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.equal(await page.evaluate(()=>requests.at(-1).name),'confirm_import');
+ await frame.getByRole('button',{name:'确认同步',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.ok(await page.evaluate(()=>requests.some(r=>r.name==='confirm_import')));
  await render({...fixture,view:'workspace',reports:[{id:'1',title:'本周工作回顾',period:'9 月 14–20 日',coverage:'2 个项目 · 5 个会话',body:'# 已完成\n接口核对与网站改版。',sources:[{label:'接口资料',uri:'viking://user/default/resources/report.md'}]}]});
  await frame.getByRole('button',{name:'报告与洞察',exact:true}).click();await frame.getByRole('button',{name:'生成报告',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/publish_report/);
  await page.screenshot({path:'docs/screenshots/reports-card.png'});
@@ -72,6 +75,38 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'更换并连接',exact:true}).click();
  await frame.getByText('连接已更新',{exact:true}).waitFor();
  assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
+ // Collaboration adoption hands off a concrete revision; skip still displays expectations.
+ await page.evaluate(()=>window.rejectMessage=false);
+ await page.setViewportSize({width:820,height:900});await page.locator('iframe').evaluate(el=>el.style.width='720px');
+ const collaboration={status:'proposed',mode:'merge',scope:'global',revision:'rules-1',summary:['参考相关记忆和资料','保存重要进展与产出','简短说明参考与沉淀']};
+ await render({...fixture,onboarding:{phase:'collaboration',collaboration,capabilities:{hooks:'unverified'}}});
+ await frame.getByText('今后这样协作',{exact:true}).waitFor();
+ await page.screenshot({path:'docs/screenshots/collaboration-card.png'});
+ await frame.getByRole('button',{name:'采用这个方式',exact:true}).click();
+ await frame.getByText('正在保存协作设置…',{exact:true}).waitFor();
+ assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/apply_rules/);
+ const flow={phase:'scope',collaboration:{...collaboration,status:'active',mode:'reuse'},capabilities:{hooks:'unverified'},import:null};
+ await render({...fixture,onboarding:flow});
+ await frame.getByText('沿用已有协作方式。',{exact:true}).waitFor();
+ await frame.getByRole('button',{name:'从现在开始 →'}).click();
+ await frame.getByText('从今天开始积累',{exact:true}).waitFor();
+ await frame.getByText(/自动回流尚未验证/).waitFor();
+ assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/不要直接结束/);
+ await page.screenshot({path:'docs/screenshots/start-today-card.png'});
+ await frame.getByRole('button',{name:'稍后',exact:true}).click();
+ await frame.getByText('设置已保留，随时可以开始。',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>fixture.onboarding.choice),'later');
+ // Pending import automatically refreshes; a usable summary appears before extraction completes.
+ const job={jobId:'a'.repeat(64),terminal:false,items:[{title:'接口设计',status:'running',written:true,verified:true}]};
+ await render({...fixture,scope:{mode:'recent',days:30},onboarding:{...flow,phase:'import',import:job}});
+ await frame.getByText('正在整理你的工作',{exact:true}).waitFor();
+ const work={id:'a',title:'接口设计',project:'OpenViking',goal:'完成接口设计',state:'接口约定已核对',decisions:'沿用现有字段',openIssues:'需要补齐错误返回',next:'检查错误示例',coverage:'已核对原始对话；记忆整理中',sources:[{label:'设计原文',uri:'viking://user/default/resources/a.md'}]};
+ await page.evaluate(value=>{window.fixture=value;}, {...fixture,scope:{mode:'recent',days:30},workspace:{works:[work]},onboarding:{...flow,phase:'ready',summaryReady:true,import:job}});
+ await frame.getByText('上次停在这里',{exact:true}).waitFor({timeout:8000});
+ assert.ok(await page.evaluate(()=>requests.some(r=>r.name==='import_status')));
+ await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'docs/screenshots/continuation-card.png'});
+ await frame.getByRole('button',{name:'修正总结',exact:true}).click();await page.waitForFunction(()=>/修正/.test(messages.at(-1).content[0].text));
+ await frame.getByRole('button',{name:'继续这项工作',exact:true}).click();await page.waitForFunction(()=>/在当前任务继续/.test(messages.at(-1).content[0].text));
  // A malformed/legacy background result must terminate loading, not create a ghost card.
  await render({...fixture,view:undefined});
  await frame.getByText('未收到卡片内容，请重试。').waitFor();

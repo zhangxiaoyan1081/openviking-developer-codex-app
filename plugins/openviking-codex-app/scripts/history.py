@@ -1,9 +1,9 @@
 """Import an explicit, approved export; never scans private host session files."""
-import argparse,hashlib,json,sys,fcntl
+import argparse,hashlib,json,sys,fcntl,time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
-import cloud,connection
+import cloud,connection,onboarding
 
 def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
 def result(value):return value.get('result',value)
@@ -29,6 +29,10 @@ def apply(plan,confirmation):
  connection.require_ready()
  validate(plan);key=digest(plan)
  if confirmation!=key:raise ValueError('导入范围已变化，请重新确认。')
+ review=cloud.load('review.json')
+ if review and (review.get('hash')!=key or not review.get('confirmed')):raise ValueError('清单已变化或尚未确认，请核对后再同步。')
+ cloud.save('imports/'+key+'.plan.json',plan)
+ cloud.save('active-import.json',{'hash':key,'sources':[{'id':s['source_id'],'title':s.get('title',s['source_id'])} for s in plan['sessions']]})
  root=cloud.folder();root.mkdir(parents=True,exist_ok=True,mode=0o700)
  with open(root/'import.lock','a') as lock:
   fcntl.flock(lock,fcntl.LOCK_EX)
@@ -71,24 +75,96 @@ def collect(plan):
   if not sid:row.update(status='not_imported',overview='')
   else:
    try:
-    ctx=result(cloud.request('/api/v1/sessions/'+quote(sid,safe='')+'/context'))
-    row.update(status='available' if ctx.get('latest_archive_overview') else 'no_overview',overview=ctx.get('latest_archive_overview',''),stats=ctx.get('stats',{}),activeMessageCount=len(ctx.get('messages',[])))
+    item=receipt['items'].get(s['source_id'],{})
+    archive=item.get('receipt',{}).get('archive_uri')
+    if archive and item.get('task',{}).get('status')=='completed':
+     row['archive_id']=archive.rstrip('/').split('/')[-1]
+     ctx=result(cloud.request('/api/v1/sessions/'+quote(sid,safe='')+'/archives/'+quote(row['archive_id'],safe='')))
+     overview=ctx.get('overview','')
+    else:
+     ctx=result(cloud.request('/api/v1/sessions/'+quote(sid,safe='')+'/context'))
+     # A newly imported session must not claim an older overview as this commit.
+     overview=ctx.get('latest_archive_overview','') if not archive else ''
+    row.update(status='available' if overview else 'no_overview',overview=overview,stats=ctx.get('stats',{}),activeMessageCount=len(ctx.get('messages',[])))
    except cloud.CloudError:row.update(status='unavailable',overview='')
   rows.append(row)
  return {'sessions':rows,'coverage':{'selected':len(rows),'withOverview':sum(x['status']=='available' for x in rows)}}
 
-def status(plan):
- state=cloud.load('imports/'+digest(plan)+'.json',{'items':{}})
- for item in state['items'].values():
+def status(plan,limit=3):
+ connection.require_ready();validate(plan)
+ key=digest(plan);name='imports/'+key+'.json'
+ state=cloud.load(name,{'items':{}});updates={}
+ # Oldest checked first, at most three calls per request; never holds the write lock during I/O.
+ candidates=sorted(state['items'].items(),key=lambda pair:pair[1].get('checkedAt',''))
+ count=0
+ for source,item in candidates:
   task=item.get('receipt',{}).get('task_id')
-  if task:
-   try:item['task']=result(cloud.request('/api/v1/tasks/'+quote(task,safe='')))
+  if task and item.get('task',{}).get('status') not in ('completed','failed','cancelled') and count<limit:
+   count+=1
+   try:item['task']=result(cloud.request('/api/v1/tasks/'+quote(task,safe=''),timeout=8))
    except cloud.CloudError:item['task']={'status':'unknown'}
- return state
+   updates[source]={'task':item['task'],'checkedAt':onboarding.now()}
+  elif not task and item.get('receipt',{}).get('status')=='skipped':
+   updates[source]={'task':{'status':'skipped'},'checkedAt':onboarding.now()}
+ root=cloud.folder();root.mkdir(parents=True,exist_ok=True,mode=0o700)
+ with open(root/'import.lock','a') as lock:
+  fcntl.flock(lock,fcntl.LOCK_EX)
+  latest=cloud.load(name,{'items':{}})
+  ledger=cloud.load('import-ledger.json',{})
+  for source,update in updates.items():
+   if source in latest['items']:latest['items'][source].update(update)
+   if source in ledger:ledger[source].update(update)
+  cloud.save('import-ledger.json',ledger)
+  cloud.save(name,latest)
+ return latest
+
+def verify(plan):
+ """Read back the exact archive when completed, otherwise the live context.
+
+ Incomplete/truncated reads remain unverified and never trigger a re-upload.
+ """
+ connection.require_ready();validate(plan)
+ name='imports/'+digest(plan)+'.json';state=cloud.load(name,{'items':{}});updates={}
+ for source in plan['sessions']:
+  item=state['items'].get(source['source_id'])
+  if not item or source.get('existing_session_id'):continue
+  sid=quote(item['session_id'],safe='');archive=item.get('receipt',{}).get('archive_uri')
+  route='/api/v1/sessions/'+sid+('/archives/'+quote(archive.rstrip('/').split('/')[-1],safe='') if archive and item.get('task',{}).get('status')=='completed' else '/context')
+  try:
+   remote=result(cloud.request(route,timeout=8)).get('messages',[])
+   actual=[(m.get('role'),m.get('content') if isinstance(m.get('content'),str) else ''.join(p.get('text','') for p in m.get('parts',[])),m.get('source_message_ids')) for m in remote]
+   expected=[(m['role'],m['content'],[m['source_message_id']]) for m in source['messages']]
+   updates[source['source_id']]={'verified':actual==expected,'verifiedAt':onboarding.now()}
+  except cloud.CloudError:updates[source['source_id']]={'verified':False,'verifiedAt':onboarding.now()}
+ with open(cloud.folder()/'import.lock','a') as lock:
+  fcntl.flock(lock,fcntl.LOCK_EX);latest=cloud.load(name,{'items':{}})
+  ledger=cloud.load('import-ledger.json',{})
+  for source,update in updates.items():
+   if source in latest['items']:latest['items'][source].update(update)
+   if source in ledger:ledger[source].update(update)
+  cloud.save('import-ledger.json',ledger)
+  cloud.save(name,latest)
+ return {'sessions':updates}
+
+def poll_job(job_id):
+ job=cloud.load('active-import.json')
+ if not job or job_id!=job['hash']:raise ValueError('同步范围已变化，请刷新。')
+ plan=cloud.load('imports/'+job_id+'.plan.json')
+ if not plan or digest(plan)!=job_id:raise ValueError('同步计划无法核对。')
+ status(plan)
+ return onboarding.state()
+
+def wait_status(plan,seconds):
+ deadline=time.monotonic()+min(max(seconds,0),30)
+ delay=2
+ while True:
+  value=status(plan)
+  if all(i.get('state')=='reused' or i.get('task',{}).get('status') in ('completed','failed','cancelled','skipped') for i in value['items'].values()) or time.monotonic()>=deadline:return value
+  time.sleep(min(delay,max(0,deadline-time.monotonic())));delay=min(delay*2,10)
 if __name__=='__main__':
- ap=argparse.ArgumentParser();ap.add_argument('action',choices=['plan','apply','collect','status']);ap.add_argument('file');ap.add_argument('--confirm');a=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('action',choices=['plan','apply','collect','status','verify']);ap.add_argument('file');ap.add_argument('--confirm');ap.add_argument('--wait',type=float,default=0);a=ap.parse_args()
  try:
   plan=validate(json.loads(Path(a.file).read_text()))
-  output={'planHash':digest(plan),'sessionCount':len(plan['sessions']),'titles':[s.get('title',s['source_id']) for s in plan['sessions']]} if a.action=='plan' else apply(plan,a.confirm) if a.action=='apply' else collect(plan) if a.action=='collect' else status(plan)
+  output={'planHash':digest(plan),'sessionCount':len(plan['sessions']),'titles':[s.get('title',s['source_id']) for s in plan['sessions']]} if a.action=='plan' else apply(plan,a.confirm) if a.action=='apply' else collect(plan) if a.action=='collect' else verify(plan) if a.action=='verify' else wait_status(plan,a.wait)
   print(json.dumps(output,ensure_ascii=False,indent=2))
  except (ValueError,KeyError,cloud.CloudError) as e:print(str(e),file=sys.stderr);sys.exit(1)

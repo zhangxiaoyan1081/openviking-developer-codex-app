@@ -7,9 +7,10 @@
 ## 体验路径
 
 1. 用户粘贴控制台生成的 [接入指令](docs/console-connect.md)。指令含 Key 时，Codex 验证后继续；没有提供 Key 时，先显示连接卡片，选择“使用当前连接 / 更换 API Key”或填写新 Key；宿主需要信任 Hook 或新任务加载时按实际提示完成。
-2. 连接验证成功后，对话中显示范围卡片：近期全部工作、选择项目、描述范围、从现在开始。
-3. 点击选择交回当前 Codex。Agent 准备可访问历史清单，再用卡片确认，随后执行导入与 Working Memory 汇总。
-4. 工作台卡片显示工作进展、目录、报告与洞察。可直接接续工作或按需生成报告；需要长时间查看时在侧边栏打开工作台。
+2. 连接验证后，核对长期协作方式：已有同等授权直接沿用；新规则展示行为与作用范围，用户采用后保存并读回。保留原有 AGENTS.md 内容，变动时重新核对。
+3. 范围卡片支持近期全部工作、项目、描述范围、从现在开始。不导入也会展示协作方式、实际能力和开始工作/保存资料/稍后入口。
+4. 导入分支先确认清单，再写入并读回、短暂查询抽取状态。可用 Working Memory 或已核对原文形成接续摘要，无需等待所有抽取结束。
+5. 摘要展示目标、上次进展、决定、待办、下一步和来源；点击继续或修正。默认在当前任务继续，新任务接续需要用户选择并回收验证结果。日常工作台仍可查看目录、按需报告，或在侧边栏打开。
 
 接入不自动打开浏览器。卡片使用标准 MCP Apps 的 `ui://` 资源、`callServerTool` 和 `sendMessage`。卡片是否展示、消息能否发回、展开方式由宿主支持决定。CLI 或不支持卡片的宿主使用原生选项/文本接续同一流程。
 
@@ -23,7 +24,7 @@ python3 install.py --companion-only
 
 它只更新本仓库插件，不重新安装官方记忆插件。已有旧名称安装时，先安装 `openviking-codex-app`，成功后卸载 `ov-personal`；凭据和本地同步、报告数据继续复用。安装后**新开一个 Codex 任务**并发送：
 
-> 使用 openviking-codex-app，调用 show_onboarding，展示 OpenViking 接入卡片。先展示连接确认，不打开浏览器。
+> 使用 openviking-codex-app 继续接入 OpenViking，从已保存的步骤继续。
 
 日常使用可以说：
 
@@ -70,6 +71,14 @@ MCP 服务启动时，把自身 Python 后端和界面资源保存为仅当前�
 
 若旧版本已经在升级中失去运行文件，需要重新打开 Codex 一次。修复后的运行副本用于避免以后重复发生。卡片失败时提供明确恢复动作；没有可见原生输入组件时，直接让用户回复“使用当前连接”或“更换 API Key”，不宣称已显示选项。
 
+## 可恢复的接入流程
+
+`get_state.onboarding` 提供当前 phase、nextAction、协作规则、导入进度、已核查能力与用户下一步。卡片和 stdin 脚本共用按连接隔离的状态。规则准备只写私有提案；用户采用具体 revision 后，由 Agent 执行 `onboarding.py apply_rules` 保存管理块、备份并读回。文件变化会使提案失效。语义等价与项目覆盖由 Agent 读取实际文件后判断，脚本不凭关键词推断授权。
+
+导入保存冻结计划、回执和任务状态；`history.py verify` 核对消息，`status --wait 10` 有界检查抽取，`collect` 对已完成的新导入优先读取回执指定的归档。终态状态不重复查询，网络错误不重发消息。卡片按 2/5/10/30 秒退避，最多自动刷新 16 次，可手动刷新继续；关闭卡片后不承诺自动唤醒 Agent。长耗时抽取不会阻塞基于已核对原文的摘要。
+
+工作摘要通过 `publish_work(onboarding=true)` 绑定当前范围；更改范围后旧摘要不能冒充新导入完成。CLI 和缺少卡片工具的宿主按同一状态执行完整流程，详见 [脚本契约](plugins/openviking-codex-app/skills/openviking-codex-app/references/onboarding-flow.md)。AGENTS.md 负责行为规则，官方 Hook 的采集开关仍单独核查。
+
 ## 开发与验证
 
 ```bash
@@ -81,7 +90,7 @@ python3 -m unittest discover -s tests -v
 node tests/check_ui.cjs
 ```
 
-测试包含独立 stdio MCP 客户端、真实 App SDK 在 iframe 中的模拟宿主交互、导入防重和清单失效保护。模拟 UI 与单元测试不代表 Codex 原生宿主验收，也不代表真实云端历史导入已验证。真实 Session 批量接口、commit/task、独立新会话接续仍需实际实例验收；没有上传测试历史来制造成功状态。
+测试包含独立 stdio MCP 客户端、真实 App SDK 在 iframe 中的模拟宿主交互、规则确认与并发变动、跳过历史、慢抽取期间接续、防重复导入、部分失败、归档定位和脚本恢复。模拟 UI 与单元测试不代表 Codex 原生宿主验收。2026-09-21 曾对用户已有火山导入只读核查 task=completed 和 overview 可用；未为新版上传测试历史，也未验证独立新会话成功接续。
 
 ## 参考
 
@@ -96,6 +105,9 @@ node tests/check_ui.cjs
 
 ![连接确认](docs/screenshots/connection-card.png)
 ![输入 Key](docs/screenshots/api-key-card.png)
+![协作方式](docs/screenshots/collaboration-card.png)
 ![范围选择](docs/screenshots/onboarding-card.png)
+![从今天开始](docs/screenshots/start-today-card.png)
+![接续摘要](docs/screenshots/continuation-card.png)
 ![报告](docs/screenshots/reports-card.png)
 ![目录](docs/screenshots/directory-card.png)
