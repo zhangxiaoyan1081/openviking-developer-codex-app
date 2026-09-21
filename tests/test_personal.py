@@ -1,7 +1,7 @@
 import sys,json,tempfile,unittest,copy
 from pathlib import Path
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/ov-personal/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/openviking-codex-app/scripts'))
 import cloud,history,workspace,panel
 class PersonalTests(unittest.TestCase):
  def setUp(self):

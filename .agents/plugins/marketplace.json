@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "ov-personal",
+      "name": "openviking-codex-app",
       "source": {
         "source": "local",
-        "path": "./plugins/ov-personal"
+        "path": "./plugins/openviking-codex-app"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -8,7 +8,7 @@ import path from 'node:path';
 test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejection',async()=>{
  const temp=await mkdtemp(path.join(os.tmpdir(),'ov-mcp-'));
  const client=new Client({name:'test',version:'1.0.0'});
- const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/ov-personal/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
+ const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/openviking-codex-app/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
  try{
   await client.connect(transport);
   const {tools}=await client.listTools();assert.equal(tools.length,10);

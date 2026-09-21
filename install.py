@@ -4,7 +4,7 @@ import argparse,hashlib,json,os,shutil,subprocess,tempfile,sys
 from pathlib import Path
 from urllib.request import urlopen
 ROOT=Path(__file__).resolve().parent
-sys.path.insert(0,str(ROOT/'plugins/ov-personal/scripts'))
+sys.path.insert(0,str(ROOT/'plugins/openviking-codex-app/scripts'))
 import cloud
 
 def commands(lock):
@@ -13,7 +13,7 @@ def commands(lock):
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--configure-stdin',action='store_true');ap.add_argument('--replace-connection',action='store_true');ap.add_argument('--plan',action='store_true');ap.add_argument('--companion-only',action='store_true');a=ap.parse_args()
  lock=json.loads((ROOT/'upstream.lock.json').read_text())
- if a.plan:print(json.dumps({'official':None if a.companion_only else commands(lock),'commit':lock['commit'],'endpoint':cloud.ENDPOINT,'companion':'ov-personal@ov-personal-cloud'},ensure_ascii=False));return
+ if a.plan:print(json.dumps({'official':None if a.companion_only else commands(lock),'commit':lock['commit'],'endpoint':cloud.ENDPOINT,'companion':'openviking-codex-app@ov-personal-cloud'},ensure_ascii=False));return
  if sys.version_info<(3,10):raise RuntimeError('需要 Python 3.10 或以上。')
  for cmd in ('node','codex','git'):
   if not shutil.which(cmd):raise RuntimeError('请先安装 '+cmd+'。')
@@ -35,10 +35,14 @@ def main():
    script=Path(tmp)/'install.sh';script.write_bytes(raw)
    env={**os.environ,'OPENVIKING_REPO_REF':lock['commit'],'OPENVIKING_REPO_URL':lock['repository']}
    cmd=commands(lock);cmd[1]=str(script);subprocess.run(cmd,env=env,check=True)
+ # Retain the registered marketplace location and cloud state across the plugin rename.
+ installed=json.loads(subprocess.check_output(['codex','plugin','list','--json'],text=True))
+ legacy_installed=any(p.get('pluginId')=='ov-personal@ov-personal-cloud' for p in installed.get('installed',[]))
  dest=Path.home()/'.local/share/ov-personal/marketplace';dest.mkdir(parents=True,exist_ok=True)
  for name in ('plugins','.agents'):shutil.copytree(ROOT/name,dest/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
  subprocess.run(['codex','plugin','marketplace','add',str(dest)],check=True)
- subprocess.run(['codex','plugin','add','ov-personal@ov-personal-cloud'],check=True)
+ subprocess.run(['codex','plugin','add','openviking-codex-app@ov-personal-cloud'],check=True)
+ if legacy_installed:subprocess.run(['codex','plugin','remove','ov-personal@ov-personal-cloud'],check=True)
  print('安装完成。请在 Codex 中加载插件，继续接入。')
 if __name__=='__main__':
  try:main()

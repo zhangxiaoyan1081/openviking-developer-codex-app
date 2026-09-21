@@ -1,5 +1,5 @@
 ---
-name: ov-personal
+name: openviking-codex-app
 description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、从多个 Session 的 Working Memory 恢复进展，并打开个人工作台。用户请求接入、同步已有工作、更新工作台或继续已有工作时使用。
 ---
 # OpenViking 个人版

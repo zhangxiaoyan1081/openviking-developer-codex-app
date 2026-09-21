@@ -2,7 +2,7 @@
 const { chromium }=require('playwright');
 const fs=require('node:fs'),http=require('node:http'),assert=require('node:assert/strict');
 const path=require('node:path');
-const html=fs.readFileSync(path.join(__dirname,'../plugins/ov-personal/assets/app.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'../plugins/openviking-codex-app/assets/app.html'),'utf8');
 const fixture={configured:true,view:'onboarding',plan:null,workspace:{works:[]},reports:[]};
 const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end(req.url==='/app'?html:`<body style="margin:30px;background:#f4f5f4"><iframe title="OpenViking" sandbox="allow-scripts allow-same-origin" src="/app" style="width:720px;height:570px;border:1px solid #ddd;border-radius:14px"></iframe></body>`);});
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({channel:'chrome',headless:true});try{

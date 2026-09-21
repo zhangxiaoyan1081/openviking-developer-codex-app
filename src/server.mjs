@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const resource='ui://openviking/personal.html';
-const server=new McpServer({name:'openviking-personal',version:'0.2.0'});
+const server=new McpServer({name:'openviking-codex-app',version:'0.2.0'});
 function backend(action,args={}){return new Promise((resolve,reject)=>{
  const child=execFile('python3',[path.join(root,'scripts/app_backend.py'),action],{timeout:60000,maxBuffer:4*1024*1024},(err,out)=>{
   try{const result=JSON.parse(out);if(err||result.error)reject(new Error(result.error||'操作未完成。'));else resolve(result);}catch{reject(new Error('操作未完成，请重试。'));}

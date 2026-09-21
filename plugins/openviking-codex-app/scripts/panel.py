@@ -28,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
   u=urlsplit(self.path);q=parse_qs(u.query)
   try:
    if u.path=='/':self.send(ASSET.read_text().replace('__TOKEN__',self.server.token),html=True)
-   elif u.path=='/health':self.send({'app':'ov-personal','instance':self.server.token})
+   elif u.path=='/health':self.send({'app':'openviking-codex-app','instance':self.server.token})
    elif u.path=='/api/state':
     from app_backend import state
     self.send(state())
@@ -60,7 +60,7 @@ def start():
   state=json.loads(path.read_text());url=state['url'];u=urlsplit(url)
   if u.hostname=='127.0.0.1' and u.scheme=='http' and u.path=='/':
    with urlopen(url+'health',timeout=1) as response:live=json.load(response)
-   if live.get('app')=='ov-personal' and live.get('instance')==state['instance']:return url
+   if live.get('app')=='openviking-codex-app' and live.get('instance')==state['instance']:return url
  except Exception:pass
  subprocess.Popen([sys.executable,__file__,'serve'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
  for _ in range(50):

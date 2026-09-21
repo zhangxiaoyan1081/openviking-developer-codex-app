@@ -2,7 +2,7 @@
 
 在 Codex 对话中接入火山 OpenViking，带入已有工作，再接着做。
 
-个人版交互插件；自动记忆复用官方 `openviking-memory`。服务端仅连接火山商业化实例。本版不识别 key 对应的版本、不提供企业分流。
+插件名：`openviking-codex-app`。个人版交互插件；自动记忆复用官方 `openviking-memory`。服务端仅连接火山商业化实例。本版不识别 key 对应的版本、不提供企业分流。
 
 ## 体验路径
 
@@ -21,9 +21,9 @@
 python3 install.py --companion-only
 ```
 
-它只更新本仓库插件，不重新安装官方记忆插件。安装后**新开一个 Codex 任务**并发送：
+它只更新本仓库插件，不重新安装官方记忆插件。已有旧名称安装时，先安装 `openviking-codex-app`，成功后卸载 `ov-personal`；凭据和本地同步、报告数据继续复用。安装后**新开一个 Codex 任务**并发送：
 
-> 使用 ov-personal，调用 show_onboarding，展示 OpenViking 接入卡片。复用已有连接，不打开浏览器。
+> 使用 openviking-codex-app，调用 show_onboarding，展示 OpenViking 接入卡片。复用已有连接，不打开浏览器。
 
 日常使用可以说：
 
@@ -40,19 +40,19 @@ python3 install.py --companion-only
 仅打开日常工作台：
 
 ```bash
-python3 plugins/ov-personal/scripts/panel.py start
+python3 plugins/openviking-codex-app/scripts/panel.py start
 ```
 
 ## 结构与边界
 
 - `src/server.mjs`：标准 MCP Apps 工具和 HTML 资源，stdio 运行；凭据留在 Python 云端客户端中。
 - `src/app.mjs`、`src/ui.mjs`：对话卡片、目录与报告。点击选择保存本地状态，发送消息由当前 Agent 接续，不伪造执行完成。
-- `plugins/ov-personal/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离。
+- `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离。
 - `scripts/history.py`：已授权计划的分批导入、commit、去重和 Working Memory 读取。请求结果未知时不自动重放。
 - `scripts/panel.py`：仅本机的日常工作台；不是 onboarding 入口。
-- `skills/ov-personal/SKILL.md`：安装、确认、导入、跨会话接续和证据驱动报告。
+- `skills/openviking-codex-app/SKILL.md`：安装、确认、导入、跨会话接续和证据驱动报告。
 
-上述 scripts/skills 短路径均相对 `plugins/ov-personal/`。Key 仅进入官方配置，不进入卡片、导入清单或报告。本地状态位于 `~/.openviking/personal/`，按连接隔离；不扫描宿主私有数据库、不采集 Computer History、不自动创建定时任务。
+上述 scripts/skills 短路径均相对 `plugins/openviking-codex-app/`。Key 仅进入官方配置，不进入卡片、导入清单或报告。本地状态位于 `~/.openviking/personal/`，按连接隔离；不扫描宿主私有数据库、不采集 Computer History、不自动创建定时任务。
 
 官方依赖由 `upstream.lock.json` 固定 GitHub commit `eb2acdb8b632c83392a10625f39d444f26c3cd09`，版本 0.9.3；校验安装脚本 SHA256 后以同一 commit 安装。固定服务地址为 `https://api.vikingdb.cn-beijing.volces.com/openviking`，不安装开源服务端。首次完整安装会重新注册固定版本的官方 marketplace；`--companion-only` 不做该步骤。连接身份不同必须明确切换，不能静默覆盖。
 

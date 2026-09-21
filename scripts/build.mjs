@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
 import { readFile,writeFile } from 'node:fs/promises';
-const destination='plugins/ov-personal';
+const destination='plugins/openviking-codex-app';
 const server=await build({entryPoints:['src/server.mjs'],outfile:`${destination}/scripts/app_server.mjs`,bundle:true,metafile:true,platform:'node',format:'esm',target:'node22',minify:true,charset:'utf8',banner:{js:"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"},legalComments:'eof'});
 const browser=await build({entryPoints:['src/app.mjs'],bundle:true,metafile:true,platform:'browser',format:'iife',target:'es2022',minify:true,charset:'utf8',write:false,legalComments:'eof'});
 const template=await readFile('src/shell.html','utf8');

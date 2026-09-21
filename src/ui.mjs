@@ -56,18 +56,18 @@ export function createUI({call,send,expand,panel=false}){
   if(d.more){run(()=>read(d.more,Number(d.offset)));return;}
   if(d.report!==undefined){const r=state.reports[Number(d.report)];main.innerHTML=nav()+`<h1>${esc(r.title)}</h1><p class="muted">${esc(r.period)} · ${esc(r.coverage)}</p><article class="report-body">${esc(r.body)}</article><hr>${sources(r.sources)}`;return;}
   run(async()=>{
-   if(d.work!==undefined){const w=state.workspace.works[Number(d.work)];await notify(`使用 ov-personal 接续「${w.title}」。下一步：${w.next}。先读取这些来源核对最新状态：${w.sources.map(x=>x.uri).join('、')}`);}
+   if(d.work!==undefined){const w=state.workspace.works[Number(d.work)];await notify(`使用 openviking-codex-app 接续「${w.title}」。下一步：${w.next}。先读取这些来源核对最新状态：${w.sources.map(x=>x.uri).join('、')}`);}
    if(d.action==='back'){scopeMode=null;onboarding();}
    if(d.action==='reset'){state.plan=null;scopeMode=null;onboarding();}
    if(d.action==='select'||d.action==='skip'){
     const args=d.action==='skip'?{mode:'skip'}:scopeMode==='recent'?{mode:'recent',days:Number($('#days').value)}:{mode:scopeMode,text:$('#scope-text').value.trim()};
     if(['projects','description'].includes(args.mode)&&!args.text)throw Error('请填写同步范围。');
     await call('select_scope',args);
-    await notify(args.mode==='skip'?'使用 ov-personal，从现在开始，不导入历史。问我想开始什么工作。':'使用 ov-personal，读取 get_state 中我刚选择的范围，准备可访问的历史清单，调用 review_import 给我确认。先不要上传。');
+    await notify(args.mode==='skip'?'使用 openviking-codex-app，从现在开始，不导入历史。问我想开始什么工作。':'使用 openviking-codex-app，读取 get_state 中我刚选择的范围，准备可访问的历史清单，调用 review_import 给我确认。先不要上传。');
    }
-   if(d.action==='confirm'){await call('confirm_import',{hash:state.plan.hash});await notify(`使用 ov-personal，我已在卡片确认计划 ${state.plan.hash}。核对 get_state 的 confirmed 与当前文件 hash 一致后，执行同步、collect Working Memory 并更新工作进展。`);}
-   if(d.action==='generate'){const labels={daily:'日报',weekly:'周报',progress:'工作进展',insight:'知识洞察'};await notify(`使用 ov-personal，基于 OpenViking 里「${$('#period').value}」的实际工作生成${labels[$('#kind').value]}。读取原文，注明时间范围与缺口，归档读回后 publish_report，并 show_workspace 展示结果。`);}
-   if(d.action==='update')await notify('使用 ov-personal，读取所选工作相关 Session 的最新 Working Memory 和资料，核对实际进展后更新工作卡片，并 show_workspace。');
+   if(d.action==='confirm'){await call('confirm_import',{hash:state.plan.hash});await notify(`使用 openviking-codex-app，我已在卡片确认计划 ${state.plan.hash}。核对 get_state 的 confirmed 与当前文件 hash 一致后，执行同步、collect Working Memory 并更新工作进展。`);}
+   if(d.action==='generate'){const labels={daily:'日报',weekly:'周报',progress:'工作进展',insight:'知识洞察'};await notify(`使用 openviking-codex-app，基于 OpenViking 里「${$('#period').value}」的实际工作生成${labels[$('#kind').value]}。读取原文，注明时间范围与缺口，归档读回后 publish_report，并 show_workspace 展示结果。`);}
+   if(d.action==='update')await notify('使用 openviking-codex-app，读取所选工作相关 Session 的最新 Working Memory 和资料，核对实际进展后更新工作卡片，并 show_workspace。');
    if(d.action==='panel')await notify('请调用 open_workspace_panel，并用 open_in_codex 在右侧打开返回的工作台 URL。');
    if(d.action==='refresh')await refresh();
    if(d.action==='expand'){if(expand)await expand();}

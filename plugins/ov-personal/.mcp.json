@@ -1,1 +1,0 @@
-{"mcpServers":{"openviking-personal":{"command":"node","args":["scripts/app_server.mjs"],"cwd":"."}}}
