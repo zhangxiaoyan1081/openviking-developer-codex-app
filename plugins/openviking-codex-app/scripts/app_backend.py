@@ -12,6 +12,11 @@ def state():
 
 def dispatch(action,value):
  if action=='state':return state()
+ if action=='onboarding_view':
+  if value.get('step')=='connection':
+   c=connection.status()
+   return {'entry':'connection','configured':c['canReuse'],'connection':{**c,'ready':False},'scope':None,'plan':None,'reports':[],'workspace':{'works':[]}}
+  return state()
  if action=='connect_existing':
   connection.select(revision=value['revision']);return state()
  if action=='connect_key':
@@ -50,7 +55,7 @@ def dispatch(action,value):
   for s in r['sources']:cloud.personal_uri(s['uri'])
   r['updatedAt']=datetime.now(timezone.utc).isoformat()
   reports=cloud.load('reports.json',[]);reports=[x for x in reports if x['id']!=r['id']];reports.insert(0,r)
-  cloud.save('reports.json',reports);return {'saved':r['id']}
+  cloud.save('reports.json',reports);return {**state(),'saved':r['id']}
  if action=='panel':return {'url':panel.start()}
  raise ValueError('不支持的操作。')
 

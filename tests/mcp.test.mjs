@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { mkdtemp,rm,cp,mkdir } from 'node:fs/promises';
+import { mkdtemp,rm,cp,mkdir,readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -13,8 +13,8 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
  try{
   await client.connect(transport);
   const {tools}=await client.listTools();assert.equal(tools.length,17);
-  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['review_import','show_onboarding','show_workspace']);
-  for(const name of ['get_state','publish_report','open_workspace_panel'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
+  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['prepare_collaboration','publish_report','publish_work','review_import','show_onboarding','show_workspace']);
+  for(const name of ['get_state','open_workspace_panel'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
   const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
   assert.deepEqual(tools.find(x=>x.name==='confirm_import')._meta.ui.visibility,['app']);
   const result=await client.callTool({name:'show_onboarding',arguments:{}});
@@ -37,7 +37,11 @@ test('MCP cards and stdin fallback share rule approval, readback and skip contin
  try{
   await client.connect(new StdioClientTransport({command:process.execPath,args:[path.join(scripts,'app_server.mjs')],env}));
   const initial=await client.callTool({name:'get_state',arguments:{}});assert.equal(initial.structuredContent.onboarding.phase,'collaboration');
+  const connection=await client.callTool({name:'show_onboarding',arguments:{step:'connection'}});
+  assert.equal(connection.structuredContent.connection.ready,false);
+  assert.equal(connection.structuredContent.connection.canReuse,true);
   const draft=await client.callTool({name:'prepare_collaboration',arguments:{path:path.join(temp,'AGENTS.md'),mode:'merge',scope:'global',summary:['保存批准的重要产出'],block:'Save approved deliverables.'}});
+  assert.equal(draft.structuredContent.view,'onboarding');
   const revision=draft.structuredContent.onboarding.collaboration.revision;
   const blocked=await client.callTool({name:'select_scope',arguments:{mode:'skip'}});assert.equal(blocked.isError,true);
   await client.callTool({name:'choose_collaboration',arguments:{revision,choice:'adopt'}});
@@ -46,7 +50,32 @@ test('MCP cards and stdin fallback share rule approval, readback and skip contin
   assert.equal(skip.structuredContent.onboarding.phase,'ready');assert.equal(skip.structuredContent.onboarding.choice,null);
   const next=await client.callTool({name:'choose_next',arguments:{choice:'later'}});assert.equal(next.structuredContent.onboarding.choice,'later');
   const persisted=JSON.parse(execFileSync('python3',[path.join(scripts,'app_backend.py'),'state'],{env,input:'{}',encoding:'utf8'}));assert.equal(persisted.onboarding.choice,'later');
+  await client.callTool({name:'select_scope',arguments:{mode:'recent',days:30}});
+  const selected=await client.callTool({name:'get_state',arguments:{}});
+  const summary=await client.callTool({name:'publish_work',arguments:{onboarding:true,scopeRevision:selected.structuredContent.onboarding.scopeRevision,works:[{id:'fixture',title:'Test work',goal:'Finish design',state:'Design reviewed',next:'Check implementation',coverage:'Fixture only',sources:[{label:'Source',uri:'viking://user/default/resources/test.md'}]}]}});
+  assert.equal(summary.isError,undefined);assert.equal(summary.structuredContent.view,'onboarding');assert.equal(summary.structuredContent.onboarding.phase,'ready');
+  assert.equal(summary.structuredContent.workspace.works[0].title,'Test work');
+  const report=await client.callTool({name:'publish_report',arguments:{id:'fixture',kind:'weekly',title:'Test report',period:'Fixture week',body:'Test body',coverage:'Fixture only',sources:[{label:'Source',uri:'viking://user/default/resources/test.md'}]}});
+  assert.equal(report.isError,undefined);assert.equal(report.structuredContent.view,'workspace');assert.equal(report.structuredContent.reports[0].body,'Test body');
   assert.ok(!JSON.stringify(next).includes('fixture-key'));
+ }finally{await client.close();await rm(temp,{recursive:true,force:true});}
+});
+
+test('installed launch survives cache removal before startup and a minimal desktop PATH',async()=>{
+ const temp=await mkdtemp(path.join(os.tmpdir(),'ov-installed-'));
+ const dest=path.join(temp,'marketplace'),cache=path.join(temp,'codex-cache');
+ const code=`import importlib.util,pathlib,shutil;spec=importlib.util.spec_from_file_location('installer',${JSON.stringify(path.resolve('install.py'))});m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);dest=pathlib.Path(${JSON.stringify(dest)});shutil.copytree(m.ROOT/'plugins',dest/'plugins');m.stage_companion(dest)`;
+ execFileSync('python3',['-c',code]);
+ await cp(path.join(dest,'plugins/openviking-codex-app'),cache,{recursive:true});
+ const config=JSON.parse(await readFile(path.join(cache,'.mcp.json'),'utf8')).mcpServers['openviking-codex-app'];
+ // Desktop may retain this config after an upgrade removes its old cache.
+ await rm(cache,{recursive:true,force:true});await rm(dest,{recursive:true,force:true});
+ const client=new Client({name:'installed-launch',version:'1'});
+ try{
+  await client.connect(new StdioClientTransport({...config,env:{PATH:'/usr/bin:/bin',HOME:temp,TMPDIR:temp,...config.env}}));
+  const result=await client.callTool({name:'show_onboarding',arguments:{step:'connection'}});
+  assert.equal(result.isError,undefined);assert.equal(result.structuredContent.connection.ready,false);
+  assert.match((await client.readResource({uri:'ui://openviking/personal.html'})).contents[0].text,/连接 OpenViking/);
  }finally{await client.close();await rm(temp,{recursive:true,force:true});}
 });
 

@@ -1,0 +1,25 @@
+name: Plugin acceptance
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  isolated-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chrome
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulated-host-screenshots
+          path: .local/acceptance/screenshots
+          include-hidden-files: true

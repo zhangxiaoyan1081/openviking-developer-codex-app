@@ -2,6 +2,7 @@
 const { chromium }=require('playwright');
 const fs=require('node:fs'),http=require('node:http'),assert=require('node:assert/strict');
 const path=require('node:path');
+fs.mkdirSync('.local/acceptance/screenshots',{recursive:true});
 const html=fs.readFileSync(path.join(__dirname,'../plugins/openviking-codex-app/assets/app.html'),'utf8');
 const fixture={configured:true,connection:{hasKey:true,canReuse:true,ready:true,revision:'test-revision'},view:'onboarding',plan:null,workspace:{works:[]},reports:[]};
 const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end(req.url==='/app'?html:`<body style="margin:30px;background:#f4f5f4"><iframe title="OpenViking" sandbox="allow-scripts allow-same-origin" src="/app" style="width:720px;height:570px;border:1px solid #ddd;border-radius:14px"></iframe></body>`);});
@@ -40,10 +41,10 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await page.goto('http://127.0.0.1:'+server.address().port);const frame=page.frameLocator('iframe');
  await frame.getByRole('button',{name:'使用当前连接',exact:true}).waitFor();
  assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
- await page.screenshot({path:'docs/screenshots/connection-card.png'});
+ await page.screenshot({path:'.local/acceptance/screenshots/connection-card.png'});
  await frame.getByRole('button',{name:'使用当前连接',exact:true}).click();
  try{await frame.getByText('带上过去的工作',{exact:true}).waitFor({timeout:8000});}catch(e){console.log('errors',errors,'protocol',await page.evaluate(()=>protocol),'frame',await page.frames()[1].locator('body').innerText());throw e;}
- await page.screenshot({path:'docs/screenshots/onboarding-card.png'});
+ await page.screenshot({path:'.local/acceptance/screenshots/onboarding-card.png'});
  await frame.getByRole('button',{name:'近期全部工作'}).click();await frame.locator('#days').selectOption('90');await frame.getByRole('button',{name:'继续',exact:true}).click();
  await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();
  assert.equal(await page.evaluate(()=>requests.find(x=>x.name==='select_scope').arguments.days),90);assert.equal(await page.evaluate(()=>messages.length),1);assert.match(await page.evaluate(()=>messages[0].content[0].text),/先不要上传/);
@@ -52,11 +53,11 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'确认同步',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.ok(await page.evaluate(()=>requests.some(r=>r.name==='confirm_import')));
  await render({...fixture,view:'workspace',reports:[{id:'1',title:'本周工作回顾',period:'9 月 14–20 日',coverage:'2 个项目 · 5 个会话',body:'# 已完成\n接口核对与网站改版。',sources:[{label:'接口资料',uri:'viking://user/default/resources/report.md'}]}]});
  await frame.getByRole('button',{name:'报告与洞察',exact:true}).click();await frame.getByRole('button',{name:'生成报告',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/publish_report/);
- await page.screenshot({path:'docs/screenshots/reports-card.png'});
+ await page.screenshot({path:'.local/acceptance/screenshots/reports-card.png'});
  await frame.getByRole('button',{name:/本周工作回顾/}).click();await frame.getByRole('button',{name:'↗ 接口资料'}).click();await frame.locator('#preview').getByText(/已完成接口核对/).waitFor();assert.equal(await page.frames()[1].evaluate(()=>window.hacked),undefined);
- await frame.getByRole('button',{name:'目录',exact:true}).click();await frame.getByRole('button',{name:'▸ projects'}).click();await frame.getByRole('button',{name:'· report.md'}).click();await frame.locator('#preview pre').waitFor();await page.screenshot({path:'docs/screenshots/directory-card.png'});
+ await frame.getByRole('button',{name:'目录',exact:true}).click();await frame.getByRole('button',{name:'▸ projects'}).click();await frame.getByRole('button',{name:'· report.md'}).click();await frame.locator('#preview pre').waitFor();await page.screenshot({path:'.local/acceptance/screenshots/directory-card.png'});
  await page.evaluate(()=>window.rejectMessage=true);await render(fixture);await frame.getByRole('button',{name:'从现在开始 →'}).click();await frame.getByText(/选择已保留/).waitFor();
- await page.setViewportSize({width:420,height:700});await page.locator('iframe').evaluate(el=>{el.style.width='360px';el.style.height='610px';});await render(fixture);await page.screenshot({path:'docs/screenshots/onboarding-mobile.png'});assert.equal(await page.frames()[1].evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+ await page.setViewportSize({width:420,height:700});await page.locator('iframe').evaluate(el=>{el.style.width='360px';el.style.height='610px';});await render(fixture);await page.screenshot({path:'.local/acceptance/screenshots/onboarding-mobile.png'});assert.equal(await page.frames()[1].evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
  // Missing Key asks for credentials; errors preserve the form and do not enter import.
  await render({...fixture,configured:false,connection:{hasKey:false,canReuse:false,ready:false,revision:'missing'}});
  await frame.getByLabel('API Key',{exact:true}).fill('invalid-test-key');
@@ -70,7 +71,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  // Existing connection offers replacement; changing it requires a fresh runtime.
  await render({...fixture,connection:{...fixture.connection,ready:false}});
  await frame.getByRole('button',{name:'更换 API Key',exact:true}).click();
- await page.screenshot({path:'docs/screenshots/api-key-card.png'});
+ await page.screenshot({path:'.local/acceptance/screenshots/api-key-card.png'});
  await frame.getByLabel('API Key',{exact:true}).fill('valid-test-key');await page.evaluate(()=>window.rejectKey=false);
  await frame.getByRole('button',{name:'更换并连接',exact:true}).click();
  await frame.getByText('连接已更新',{exact:true}).waitFor();
@@ -81,7 +82,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  const collaboration={status:'proposed',mode:'merge',scope:'global',revision:'rules-1',summary:['参考相关记忆和资料','保存重要进展与产出','简短说明参考与沉淀']};
  await render({...fixture,onboarding:{phase:'collaboration',collaboration,capabilities:{hooks:'unverified'}}});
  await frame.getByText('今后这样协作',{exact:true}).waitFor();
- await page.screenshot({path:'docs/screenshots/collaboration-card.png'});
+ await page.screenshot({path:'.local/acceptance/screenshots/collaboration-card.png'});
  await frame.getByRole('button',{name:'采用这个方式',exact:true}).click();
  await frame.getByText('正在保存协作设置…',{exact:true}).waitFor();
  assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/apply_rules/);
@@ -92,10 +93,17 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByText('从今天开始积累',{exact:true}).waitFor();
  await frame.getByText(/自动回流尚未验证/).waitFor();
  assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/不要直接结束/);
- await page.screenshot({path:'docs/screenshots/start-today-card.png'});
+ await page.screenshot({path:'.local/acceptance/screenshots/start-today-card.png'});
  await frame.getByRole('button',{name:'稍后',exact:true}).click();
  await frame.getByText('设置已保留，随时可以开始。',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>fixture.onboarding.choice),'later');
+ // Explicit reconnect must not jump to a previous completed onboarding.
+ await render({...fixture,entry:'connection',connection:{...fixture.connection,ready:false},scope:{mode:'skip'},onboarding:{...flow,phase:'ready',choice:'later'}});
+ await frame.getByRole('button',{name:'使用当前连接',exact:true}).click();
+ await frame.getByText('带上过去的工作',{exact:true}).waitFor();
+ await frame.getByText('沿用已有协作方式。',{exact:true}).click();
+ await frame.getByText('参考相关记忆和资料',{exact:true}).waitFor();
+ assert.equal(await frame.getByText('从今天开始积累',{exact:true}).count(),0);
  // Pending import automatically refreshes; a usable summary appears before extraction completes.
  const job={jobId:'a'.repeat(64),terminal:false,items:[{title:'接口设计',status:'running',written:true,verified:true}]};
  await render({...fixture,scope:{mode:'recent',days:30},onboarding:{...flow,phase:'import',import:job}});
@@ -104,7 +112,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await page.evaluate(value=>{window.fixture=value;}, {...fixture,scope:{mode:'recent',days:30},workspace:{works:[work]},onboarding:{...flow,phase:'ready',summaryReady:true,import:job}});
  await frame.getByText('上次停在这里',{exact:true}).waitFor({timeout:8000});
  assert.ok(await page.evaluate(()=>requests.some(r=>r.name==='import_status')));
- await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'docs/screenshots/continuation-card.png'});
+ await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'.local/acceptance/screenshots/continuation-card.png'});
  await frame.getByRole('button',{name:'修正总结',exact:true}).click();await page.waitForFunction(()=>/修正/.test(messages.at(-1).content[0].text));
  await frame.getByRole('button',{name:'继续这项工作',exact:true}).click();await page.waitForFunction(()=>/在当前任务继续/.test(messages.at(-1).content[0].text));
  // A malformed/legacy background result must terminate loading, not create a ghost card.

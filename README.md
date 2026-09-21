@@ -67,9 +67,9 @@ python3 plugins/openviking-codex-app/scripts/panel.py start
 
 ## 升级与卡片故障
 
-MCP 服务启动时，把自身 Python 后端和界面资源保存为仅当前运行使用的临时代码副本。升级清除旧插件缓存后，已有任务仍可继续运行其原版本。副本不含 Key、历史或报告，用户数据仍在原配置目录。工具结果的 runtimeVersion 标识实际运行版本。
+安装器将运行文件复制到 `~/.local/share/ov-personal/runtimes/<内容哈希>/`，并为安装副本写入 Node、Python 和服务入口的绝对路径。源码包保留可移植配置；请通过 install.py 安装。旧快照保留，避免已运行任务的配置指向被删除的缓存目录。MCP 服务启动后，再把自身 Python 后端和界面资源保存为仅当前运行使用的临时代码副本。升级清除旧插件缓存后，已有任务仍可继续运行其原版本。副本不含 Key、历史或报告，用户数据仍在原配置目录。工具结果的 runtimeVersion 标识实际运行版本。
 
-若旧版本已经在升级中失去运行文件，需要重新打开 Codex 一次。修复后的运行副本用于避免以后重复发生。没有卡片时直接用原生选项或文本完成相同流程，不提示卡片缺失或交互方式切换。没有可见原生输入组件时，直接问“使用当前连接，还是更换 API Key？”，不宣称已显示选项。只有脚本和对话也无法继续、需要用户处理时，才说明实际影响和必要恢复动作。
+旧任务若已经缓存失效的启动配置，需要重新打开 Codex 加载修复后的配置；安装成功不能当作旧任务已经恢复。修复后的运行副本用于避免以后重复发生。没有卡片时直接用原生选项或文本完成相同流程，不提示卡片缺失或交互方式切换。没有可见原生输入组件时，直接问“使用当前连接，还是更换 API Key？”，不宣称已显示选项。只有脚本和对话也无法继续、需要用户处理时，才说明实际影响和必要恢复动作。
 
 ## 可恢复的接入流程
 
@@ -83,14 +83,17 @@ MCP 服务启动时，把自身 Python 后端和界面资源保存为仅当前�
 
 ```bash
 npm ci --ignore-scripts
-npm run build
-npm run test:mcp
-python3 -m unittest discover -s tests -v
-# 需安装 Playwright 和本机 Chrome
-node tests/check_ui.cjs
+npx playwright install chrome
+npm test
+# 本机安装后，检查 Codex 实际解析的启动配置（只读）
+npm run check:installed
+# 新启动 Codex 官方 app-server 核对注册和资源，不创建任务
+npm run check:codex-host
 ```
 
-测试包含独立 stdio MCP 客户端、真实 App SDK 在 iframe 中的模拟宿主交互、规则确认与并发变动、跳过历史、慢抽取期间接续、防重复导入、部分失败、归档定位和脚本恢复。模拟 UI 与单元测试不代表 Codex 原生宿主验收。2026-09-21 曾对用户已有火山导入只读核查 task=completed 和 overview 可用；未为新版上传测试历史，也未验证独立新会话成功接续。
+`npm test` 运行 Python、stdio MCP、卡片界面与完整集成回归。集成回归使用真实 MCP 服务、Python 状态和 App SDK，只模拟宿主消息桥；覆盖连接入口、规则采用、范围选择、跳过导入、清单确认、进度轮询和接续按钮，使用隔离虚构资料，不上传云端。截图保存至 `.local/acceptance/screenshots/`。GitHub Actions 自动执行同一套测试。
+
+`check:installed` 使用 Codex 解析后的安装配置，在最小 PATH 下启动服务，验证六个展示工具的 UI 资源元数据、连接卡片数据与 HTML 读取。它不代表 Codex 对话中已经显示卡片。原生宿主验收必须另行核对工具调用、真实显示、点击回传与流程推进；HIL、Markdown、工具 JSON 和安装成功不能替代。详细证据与未通过项见 [验收记录](docs/card-acceptance.md)。
 
 ## 参考
 

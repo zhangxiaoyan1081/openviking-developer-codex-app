@@ -7,6 +7,27 @@ ROOT=Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT/'plugins/openviking-codex-app/scripts'))
 import cloud,connection
 
+def stage_companion(dest):
+ """Keep launch paths valid even after Codex replaces a versioned cache."""
+ source=ROOT/'plugins/openviking-codex-app'
+ files=sorted(p for p in source.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix!='.pyc')
+ digest=hashlib.sha256()
+ for p in files:
+  digest.update(str(p.relative_to(source)).encode()+b'\0'+p.read_bytes())
+ runtime_parent=dest.parent/'runtimes';runtime_parent.mkdir(parents=True,exist_ok=True)
+ runtime=runtime_parent/digest.hexdigest()[:24]
+ if not runtime.exists():
+  with tempfile.TemporaryDirectory(dir=runtime_parent) as tmp:
+   staged=Path(tmp)/'plugin'
+   shutil.copytree(source,staged,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+   try:staged.rename(runtime)
+   except FileExistsError:pass
+ node=shutil.which('node')
+ if not node:raise RuntimeError('请先安装 Node.js 22 或以上。')
+ config={'mcpServers':{'openviking-codex-app':{'command':str(Path(node).absolute()),'args':[str(runtime/'scripts/app_server.mjs')],'cwd':str(runtime),'env':{'OV_APP_PYTHON':sys.executable}}}}
+ (dest/'plugins/openviking-codex-app/.mcp.json').write_text(json.dumps(config,ensure_ascii=False,indent=2)+'\n')
+ return runtime
+
 def commands(lock):
  return ['bash','<verified-official-installer>','--harness','codex','--dist','github','--source','remote','--lang','zh','--url',cloud.ENDPOINT,'--yes']
 
@@ -39,6 +60,7 @@ def main():
  legacy_installed=any(p.get('pluginId')=='ov-personal@ov-personal-cloud' for p in installed.get('installed',[]))
  dest=Path.home()/'.local/share/ov-personal/marketplace';dest.mkdir(parents=True,exist_ok=True)
  for name in ('plugins','.agents'):shutil.copytree(ROOT/name,dest/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+ stage_companion(dest)
  subprocess.run(['codex','plugin','marketplace','add',str(dest)],check=True)
  subprocess.run(['codex','plugin','add','openviking-codex-app@ov-personal-cloud'],check=True)
  if legacy_installed:subprocess.run(['codex','plugin','remove','ov-personal@ov-personal-cloud'],check=True)

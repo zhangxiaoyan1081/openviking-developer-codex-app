@@ -6,6 +6,14 @@ class AppTests(unittest.TestCase):
  setUp=fixtures.PersonalTests.setUp
  tearDown=fixtures.PersonalTests.tearDown
  plan=fixtures.PersonalTests.plan
+ def test_new_connection_card_hides_previous_workspace_without_resetting_it(self):
+  cloud.save('workspace.json',{'works':[{'title':'existing work'}]})
+  result=app_backend.dispatch('onboarding_view',{'step':'connection'})
+  self.assertFalse(result['connection']['ready'])
+  self.assertTrue(result['connection']['canReuse'])
+  self.assertEqual(result['workspace']['works'],[])
+  self.assertTrue(app_backend.state()['connection']['ready'])
+  self.assertEqual(app_backend.state()['workspace']['works'][0]['title'],'existing work')
  def test_review_confirmation_stale_hash(self):
   p=self.root/'plan.json';plan=self.plan();p.write_text(json.dumps(plan))
   with patch.object(cloud,'request') as request:

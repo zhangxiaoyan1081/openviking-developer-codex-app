@@ -1,1 +1,24 @@
-{"name":"openviking-developer-codex-app","version":"0.2.0","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test:mcp":"node --test tests/mcp.test.mjs"},"dependencies":{"@modelcontextprotocol/ext-apps":"1.7.5","@modelcontextprotocol/sdk":"1.30.0","zod":"4.3.6"},"devDependencies":{"esbuild":"0.25.12"}}
+{
+  "name": "openviking-developer-codex-app",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test:mcp": "node --test tests/mcp.test.mjs",
+    "test:python": "python3 -m unittest discover -s tests -p 'test_*.py'",
+    "test:ui": "node tests/check_ui.cjs && node tests/app-integration.cjs",
+    "test": "npm run build && npm run test:python && npm run test:mcp && npm run test:ui",
+    "check:installed": "node scripts/check-installed.mjs",
+    "check:codex-host": "python3 scripts/check-codex-host.py"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "playwright": "1.62.1"
+  }
+}
