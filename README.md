@@ -16,7 +16,17 @@
 
 ## 分享与分发
 
-团队成员请从 [团队试用说明](docs/team-quickstart.md) 开始；工作区发布、公共目录和左侧入口的支持边界见 [分发说明](docs/distribution.md)。
+仓库已公开，无需 GitHub 授权即可下载。复制 [安装指令](docs/install.md) 给 Codex，或在终端执行：
+
+```bash
+git clone https://github.com/zhangxiaoyan1081/openviking-developer-codex-app.git
+cd openviking-developer-codex-app
+python3 install.py --companion-only
+```
+
+安装后新开任务，发送“使用 openviking-codex-app 接入 OpenViking”，按引导配置自己的 Key、确认协作方式。
+
+团队使用见 [团队试用说明](docs/team-quickstart.md)；工作区发布、公共目录和左侧入口见 [分发说明](docs/distribution.md)。[远程 HTTPS MCP 改造方案](docs/remote-mcp.md) 描述后续服务化路径，远程服务尚未部署。
 
 ## 试用
 
@@ -40,7 +50,7 @@ python3 install.py --companion-only
 
 侧边栏用于查看目录、已发布工作卡片和报告；生成报告与接续工作通过对话中的卡片或直接提问完成。它不会在用户没有发出请求时后台启动另一个 Agent。
 
-首次接入使用 [控制台指令](docs/console-connect.md)。私有仓库可通过 `gh repo clone zhangxiaoyan1081/openviking-developer-codex-app` 获取。需要 Python 3.10+、Node.js 22+、Git、Codex CLI。分发包已包含打包 JS，用户无需 npm install。
+首次接入使用 [控制台指令](docs/console-connect.md)。公开仓库可通过上面的 `git clone` 获取，无需安装 GitHub CLI。需要 Python 3.10+、Node.js 22+、Git、Codex CLI。分发包已包含打包 JS，用户无需 npm install。
 
 仅打开日常工作台：
 
@@ -104,7 +114,7 @@ npm run check:codex-host
 - 同事 `ov-distributable`：复用标准 MCP Apps 交互形式，以及“概览、报告内容、来源、接续”的组织思路；未启用旧内置采集。
 - [OpenViking Web Studio](https://github.com/volcengine/OpenViking/tree/main/web-studio)：参考目录导航与分栏预览，独立实现个人范围浏览，不复制其服务端启动流程。
 - [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)：标准卡片桥接。
-- 第三方依赖许可见分发插件内 `THIRD_PARTY_NOTICES.txt`。本仓库仍为私有协作项目。
+- 第三方依赖许可见分发插件内 `THIRD_PARTY_NOTICES.txt`。本仓库已公开；尚未指定本项目的开源许可证，公开可访问不等于授予任意再分发许可。
 
 ## 卡片预览
 

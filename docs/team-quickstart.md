@@ -3,24 +3,24 @@
 日期：2026-09-21
 状态：团队试用说明；已验证 macOS 本地安装，尚未完成其他操作系统的真实安装验收。
 
-## 取得安装包
+## 获取插件
 
-从维护者取得 `openviking-codex-app-team.zip`，解压后在 Codex 中打开解压目录。安装包不包含 API Key、个人历史或本机连接配置。每位成员使用自己的火山 OpenViking API Key。
+直接把 [安装指令](install.md) 复制给 Codex。仓库已公开，无需 GitHub 账号或仓库授权。每位成员使用自己的火山 OpenViking API Key。
 
-也可以在拥有私有仓库读取权限时执行：
+也可以在终端执行：
 
 ```bash
-gh repo clone zhangxiaoyan1081/openviking-developer-codex-app
+git clone https://github.com/zhangxiaoyan1081/openviking-developer-codex-app.git
 cd openviking-developer-codex-app
 ```
 
-仓库：https://github.com/zhangxiaoyan1081/openviking-developer-codex-app
+无法直接访问 GitHub 的成员可以从维护者取得 `openviking-codex-app-team.zip`，解压后打开目录。安装包不包含 API Key、个人历史或本机连接配置。
 
 ## 开始使用
 
 需要 Codex 桌面版、可用的 Codex CLI、Python 3.10+、Node.js 22+ 和 Git。已附打包资源，无需执行 npm install。
 
-把以下内容发给在解压目录中打开的 Codex：
+把以下内容发给在仓库或解压目录中打开的 Codex：
 
 > 请安装当前目录的 OpenViking Codex App。先读取 README.md 和 docs/console-connect.md，执行 python3 install.py --companion-only。安装完成后告诉我如何在新任务接入；不要自动沿用旧连接，也不要上传历史。
 
