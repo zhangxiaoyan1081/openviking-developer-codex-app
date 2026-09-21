@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { mkdtemp,rm } from 'node:fs/promises';
+import { mkdtemp,rm,cp,mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejection',async()=>{
@@ -23,5 +23,24 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
   assert.equal(resource.contents[0].mimeType,'text/html;profile=mcp-app');assert.match(resource.contents[0].text,/带上过去的工作/);
   assert.ok(!resource.contents[0].text.includes('test-only'));
   const invalid=await client.callTool({name:'select_scope',arguments:{mode:'recent',days:120}});assert.equal(invalid.isError,true);
+ }finally{await client.close();await rm(temp,{recursive:true,force:true});}
+});
+
+test('a live installed MCP survives plugin cache removal, including a deleted working directory',async()=>{
+ const temp=await mkdtemp(path.join(os.tmpdir(),'ov-upgrade-'));
+ const cache=path.join(temp,'old-cache');await cp(path.resolve('plugins/openviking-codex-app'),cache,{recursive:true});
+ const home=path.join(temp,'home');await mkdir(home);
+ const client=new Client({name:'upgrade-test',version:'1.0.0'});
+ const transport=new StdioClientTransport({command:process.execPath,args:['scripts/app_server.mjs'],cwd:cache,env:{PATH:process.env.PATH,HOME:home,TMPDIR:temp}});
+ try{
+  await client.connect(transport);
+  const first=await client.callTool({name:'show_onboarding',arguments:{}});assert.equal(first.isError,undefined);
+  const html=await client.readResource({uri:'ui://openviking/personal.html'});
+  await rm(cache,{recursive:true,force:true});
+  const next=await client.callTool({name:'show_onboarding',arguments:{}});
+  assert.equal(next.isError,undefined);assert.equal(next.structuredContent.view,'onboarding');
+  assert.equal(next.structuredContent.runtimeVersion,first.structuredContent.runtimeVersion);
+  assert.deepEqual(await client.readResource({uri:'ui://openviking/personal.html'}),html);
+  const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.isError,undefined);
  }finally{await client.close();await rm(temp,{recursive:true,force:true});}
 });

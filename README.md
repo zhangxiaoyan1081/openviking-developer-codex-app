@@ -64,6 +64,12 @@ python3 plugins/openviking-codex-app/scripts/panel.py start
 
 官方依赖由 `upstream.lock.json` 固定 GitHub commit `eb2acdb8b632c83392a10625f39d444f26c3cd09`，版本 0.9.3；校验安装脚本 SHA256 后以同一 commit 安装。固定服务地址为 `https://api.vikingdb.cn-beijing.volces.com/openviking`，不安装开源服务端。首次完整安装会重新注册固定版本的官方 marketplace；`--companion-only` 不做该步骤。连接身份不同必须明确切换，不能静默覆盖。
 
+## 升级与卡片故障
+
+MCP 服务启动时，把自身 Python 后端和界面资源保存为仅当前运行使用的临时代码副本。升级清除旧插件缓存后，已有任务仍可继续运行其原版本。副本不含 Key、历史或报告，用户数据仍在原配置目录。工具结果的 runtimeVersion 标识实际运行版本。
+
+若旧版本已经在升级中失去运行文件，需要重新打开 Codex 一次。修复后的运行副本用于避免以后重复发生。卡片失败时提供明确恢复动作；没有可见原生输入组件时，直接让用户回复“使用当前连接”或“更换 API Key”，不宣称已显示选项。
+
 ## 开发与验证
 
 ```bash

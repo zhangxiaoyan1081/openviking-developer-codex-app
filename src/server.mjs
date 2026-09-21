@@ -7,17 +7,19 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { pinRuntime } from './runtime.mjs';
 const runtimeId=randomUUID();
 const startedAt=String(Date.now()/1000);
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const source=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const {root,version}=await pinRuntime(source);
 const resource='ui://openviking/personal.html';
-const server=new McpServer({name:'openviking-codex-app',version:'0.2.0'});
+const server=new McpServer({name:'openviking-codex-app',version});
 function backend(action,args={}){return new Promise((resolve,reject)=>{
- const child=execFile('python3',[path.join(root,'scripts/app_backend.py'),action],{env:{...process.env,OV_APP_RUNTIME_ID:runtimeId,OV_APP_STARTED_AT:startedAt},timeout:60000,maxBuffer:4*1024*1024},(err,out)=>{
-  try{const result=JSON.parse(out);if(err||result.error)reject(new Error(result.error||'操作未完成。'));else resolve(result);}catch{reject(new Error('操作未完成，请重试。'));}
+ const child=execFile('python3',[path.join(root,'scripts/app_backend.py'),action],{cwd:root,env:{...process.env,OV_APP_RUNTIME_ID:runtimeId,OV_APP_STARTED_AT:startedAt},timeout:60000,maxBuffer:4*1024*1024},(err,out)=>{
+  try{const result=JSON.parse(out);if(err||result.error)reject(new Error(result.error||'操作未完成。'));else resolve(result);}catch{const code=err?.code==='ENOENT'?'PYTHON_UNAVAILABLE':err?.killed?'BACKEND_TIMEOUT':'BACKEND_FAILED';const message=code==='PYTHON_UNAVAILABLE'?'未找到 Python 3，请安装后重新打开 Codex。':code==='BACKEND_TIMEOUT'?'连接响应超时，请稍后重试。':'接入服务未能运行，请重新打开 Codex 后再试。';reject(Object.assign(new Error(message),{code}));}
  });child.stdin.end(JSON.stringify(args));
 });}
-function output(value){return {content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value};}
+function output(value){value={...value,runtimeVersion:version};return {content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value};}
 function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}={}){
  const config={description,inputSchema:schema,annotations:{readOnlyHint:readOnly,destructiveHint:false,openWorldHint:!['state','scope','confirm','review','publish_report'].includes(action)}};
  // Only presentation tools create a card. App callbacks keep their visibility
@@ -25,7 +27,7 @@ function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}
  if(view)config._meta={ui:{resourceUri:resource,visibility:['model','app']}};
  else if(appOnly)config._meta={ui:{visibility:['app']}};
  const handler=async(args)=>{
-  try{return output({...await backend(action,args),...(view?{view}:{})});}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}
+  try{return output({...await backend(action,args),...(view?{view}:{})});}catch(e){return {isError:true,content:[{type:'text',text:e.message}],structuredContent:{error:{code:e.code||'OPERATION_FAILED',message:e.message},runtimeVersion:version}};}
  };
  if(view)registerAppTool(server,name,config,handler);
  else server.registerTool(name,config,handler);
