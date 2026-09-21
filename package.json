@@ -7,7 +7,7 @@
     "build": "node scripts/build.mjs",
     "test:mcp": "node --test tests/mcp.test.mjs",
     "test:python": "python3 -m unittest discover -s tests -p 'test_*.py'",
-    "test:ui": "node tests/check_ui.cjs && node tests/app-integration.cjs && node tests/panel-ui.cjs",
+    "test:ui": "node tests/check_ui.cjs && node tests/app-integration.cjs && node tests/panel-ui.cjs && node tests/progress-ui.cjs",
     "test": "npm run build && npm run test:python && npm run test:mcp && npm run test:ui",
     "check:installed": "node scripts/check-installed.mjs",
     "check:codex-host": "python3 scripts/check-codex-host.py"

@@ -17,6 +17,7 @@ const server=http.createServer((req,res)=>{
  if(u.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
  res.setHeader('Content-Type','application/json');
  if(u.pathname==='/api/state'){res.end(JSON.stringify({connection:{ready:true},workspace:{works:[]},reports:[]}));return;}
+ if(u.pathname==='/api/session_progress'){res.end(JSON.stringify({status:'complete',total:0,done:0,matched:0,items:[]}));return;}
  if(u.pathname==='/api/list'){
   if(uri==='viking://agent/assistant'){res.statusCode=400;res.end(JSON.stringify({error:'无权访问此目录'}));return;}
   res.end(JSON.stringify(text(lists[uri]||'')));return;

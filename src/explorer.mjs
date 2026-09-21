@@ -25,7 +25,7 @@ export function parseTree(r,base){
  }
  return {map,truncated};
 }
-function markdown(text){return DOMPurify.sanitize(marked.parse(text,{gfm:true}),{FORBID_TAGS:['img','style','iframe','form','input','button'],ALLOWED_URI_REGEXP:/^(?:(?:https?|mailto|viking):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i});}
+export function markdown(text){return DOMPurify.sanitize(marked.parse(text,{gfm:true}),{FORBID_TAGS:['img','style','iframe','form','input','button'],ALLOWED_URI_REGEXP:/^(?:(?:https?|mailto|viking):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i});}
 export function createExplorer({host,call}){
  let current=ROOT,selected=null,selection=0,disposed=false,cache=new Map(),expanded=new Set([ROOT]),pending=new Map(),errors=new Map(),hidden=true,level='abstract',mode='preview',documents={};
  const $=q=>host.querySelector(q);

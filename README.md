@@ -48,7 +48,7 @@ python3 install.py --companion-only
 
 > 在侧边栏打开 OpenViking 工作台。
 
-“打开我的 OpenViking 工作台”直接打开右侧面板，不新增工作台卡片。侧边栏用于查看目录、已发布工作卡片和报告；生成报告与接续工作通过对话中的卡片或直接提问完成。它不会在用户没有发出请求时后台启动另一个 Agent。
+“打开我的 OpenViking 工作台”直接打开右侧面板，不新增工作台卡片。侧边栏按“目录 → 工作进展 → 报告与洞察”排列；工作进展读取当前用户全部 Session 的最新 archive L1，以横向卡片展示标题、当前状态和 L1 更新时间，可搜索、分页和展开全文；生成报告与接续工作通过对话中的卡片或直接提问完成。它不会在用户没有发出请求时后台启动另一个 Agent。
 
 首次接入使用 [控制台指令](docs/console-connect.md)。公开仓库可通过上面的 `git clone` 获取，无需安装 GitHub CLI。需要 Python 3.10+、Node.js 22+、Git、Codex CLI。分发包已包含打包 JS，用户无需 npm install。
 
@@ -69,6 +69,7 @@ python3 plugins/openviking-codex-app/scripts/panel.py start
 ## 结构与边界
 
 - `src/server.mjs`：标准 MCP Apps 工具和 HTML 资源，stdio 运行；凭据留在 Python 云端客户端中。
+- `src/progress.mjs`、`session_progress.py`：云端会话最新归档索引、横向进展卡片、搜索分页与完整 L1 预览。详见 [工作进展说明](docs/session-progress.md)。
 - `src/explorer.mjs`：从 `viking://` 根目录浏览，双栏完整目录树、`user/default` 层级、路径导航、隐藏文件、自动 L0/L1、预览/源码/路径切换、JSON 与原生图片预览；大文本每次 200 行追加读取。
 - `src/app.mjs`、`src/ui.mjs`：对话卡片、目录与报告。点击选择保存本地状态，发送消息由当前 Agent 接续，不伪造执行完成。
 - `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离；只有连接明确确认后才能导入。

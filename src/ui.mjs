@@ -1,3 +1,4 @@
+import {createProgress} from './progress.mjs';
 import {createExplorer,ROOT} from './explorer.mjs';
 export const escapeHTML=(value='')=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const esc=escapeHTML;
@@ -7,7 +8,7 @@ export function entries(result,uri){
  return {text,items:text.split('\n').map(x=>x.match(/^\[(dir|file)\] (.+)$/)).filter(Boolean).map(x=>({dir:x[1]==='dir',name:x[2].replace(/\/$/,''),uri:uri+'/'+x[2].replace(/\/$/,'')}))};
 }
 export function createUI({call,send,expand,panel=false}){
- let state={},page='progress',scopeMode=null,keyEntry=false,choosingScope=false,entryConnection=false,uri=ROOT,revision=0,busy=false,pollTimer,pollCount=0,pollGeneration=0,summaryCard=false,explorer;
+ let state={},page='progress',scopeMode=null,keyEntry=false,choosingScope=false,entryConnection=false,uri=ROOT,revision=0,busy=false,pollTimer,pollCount=0,pollGeneration=0,summaryCard=false,explorer,sessionProgress;
  const $=s=>document.querySelector(s),main=$('#main'),notice=$('#notice');
  const message=text=>{notice.textContent=text;};
  async function run(fn){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);message('');try{await fn();}catch(e){message(e.message||'操作未完成，请重试。');}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
@@ -16,7 +17,7 @@ export function createUI({call,send,expand,panel=false}){
   try{await send(text);message('已交给 Codex，请在对话中继续。');}
   catch{message('选择已保留。当前无法发送，请在对话中说“继续 OpenViking”。');}
  }
- function nav(){return `<nav class="tabs" aria-label="工作台">${[['progress','工作进展'],['files','目录'],['reports','报告与洞察']].map(([id,label])=>`<button data-page="${id}" class="${page===id?'active':''}">${label}</button>`).join('')}</nav>`;}
+ function nav(){return `<nav class="tabs" aria-label="工作台">${[['files','目录'],['progress','工作进展'],['reports','报告与洞察']].map(([id,label])=>`<button data-page="${id}" class="${page===id?'active':''}">${label}</button>`).join('')}</nav>`;}
  function connect(){
   revision++;$('#header-actions').innerHTML=panel?'':'<button class="quiet" data-action="refresh">刷新</button>';
   const c=state.connection||{};
@@ -62,11 +63,12 @@ export function createUI({call,send,expand,panel=false}){
  }
  function sources(items){return items.map(s=>`<button class="source" data-file="${esc(s.uri)}">↗ ${esc(s.label)}</button>`).join('');}
  function workspace(){
+  sessionProgress?.dispose();
   if(!state.connection?.ready||keyEntry){connect();return;}
   revision++;$('#header-actions').innerHTML=`<button class="quiet" data-action="refresh" aria-label="刷新">刷新</button>${panel?'':'<button class="quiet" data-action="expand">展开</button><button class="quiet" data-action="panel">侧边栏 ↗</button>'}`;
   if(page==='files'){directory();return;}
   if(page==='reports'){reports();return;}
-  main.innerHTML=nav()+`<div class="row spaced"><h1>工作进展</h1>${panel?'':'<button data-action="update">更新进展</button>'}</div><div class="cards">${workCards()}</div>${state.workspace?.works?.length?'':'<p class="empty">还没有工作进展。在对话中同步已有工作，或开始一项新任务。</p>'}`;
+  sessionProgress?.dispose();main.innerHTML=nav()+'<section id="session-progress"></section>';sessionProgress=createProgress({host:$('#session-progress'),call,send:panel?undefined:send});sessionProgress.mount();
  }
  function reports(){
   const all=state.reports||[];
@@ -105,7 +107,7 @@ export function createUI({call,send,expand,panel=false}){
  document.addEventListener('click',event=>{
   const b=event.target.closest('button');if(!b||b.disabled)return;const d=b.dataset;
   if(d.scope){scopeMode=d.scope;onboarding();return;}
-  if(d.page){explorer?.dispose();page=d.page;workspace();return;}
+  if(d.page){sessionProgress?.dispose();explorer?.dispose();page=d.page;workspace();return;}
   if(d.dir){uri=d.dir;page='files';workspace();return;}
   if(d.file){run(()=>read(d.file));return;}
   if(d.more){run(()=>read(d.more,Number(d.offset)));return;}

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit,parse_qs
 from urllib.request import urlopen
 import cloud,connection
 ASSET=Path(__file__).resolve().parents[1]/'assets/index.html'
-BUILD=hashlib.sha256(ASSET.read_bytes()+Path(__file__).read_bytes()).hexdigest()[:16]
+BUILD=hashlib.sha256(ASSET.read_bytes()+b''.join(p.name.encode()+p.read_bytes() for p in sorted(Path(__file__).parent.glob('*.py')))).hexdigest()[:16]
 
 def scope(value):
  if value.get('mode') not in ('recent','projects','description','skip'):raise ValueError('请选择同步范围。')
@@ -34,11 +34,11 @@ class Handler(BaseHTTPRequestHandler):
     if getattr(self.server,'connection_id',cloud.folder().name)!=cloud.folder().name:raise ValueError('连接已更换，请重新打开工作台。')
     from app_backend import state
     self.send(state())
-   elif u.path in ('/api/list','/api/tree','/api/read'):
+   elif u.path in ('/api/list','/api/tree','/api/read','/api/session_progress','/api/session_detail'):
     from app_backend import dispatch
     connection.require_ready()
     if getattr(self.server,'connection_id',cloud.folder().name)!=cloud.folder().name:raise ValueError('连接已更换，请重新打开工作台。')
-    args={'uri':q.get('uri',['viking://'])[0],'offset':int(q.get('offset',['0'])[0])}
+    args={'uri':q.get('uri',['viking://'])[0],'offset':int(q.get('offset',['0'])[0]),'query':q.get('query',[''])[0],'refresh':q.get('refresh',['false'])[0]=='true'}
     self.send(dispatch(u.path.rsplit('/',1)[1],args))
    else:self.send({'error':'页面不存在。'},404)
   except (ValueError,cloud.CloudError) as e:self.send({'error':str(e)},400)

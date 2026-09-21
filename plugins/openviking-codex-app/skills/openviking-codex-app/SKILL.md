@@ -74,7 +74,7 @@ history.py collect <计划文件> 读取每个所选 Session 的最新可用概�
 
 必须让用户看到“上次停在这里”，包括目标 goal、进展 state、有效决定 decisions、待办 openIssues、具体 next、sources 与 coverage。多项目先列卡片，允许纠正。没有概览时从已读回的原文恢复并标注，不把待抽取当成没有可用内容；新概览生成后核对差异，不覆盖用户此后确认的进展。来源不足则明确缺口和取得来源的下一步，不编造摘要。
 
-写入官方个人资源目录后读回，再 publish_work(onboarding=true, scopeRevision=<准备摘要前 get_state.onboarding.scopeRevision>, works=[...]) 或 workspace.py stdin 发布；onboarding=true 将摘要绑定当前范围。每卡含 id、title、project、goal、state、decisions、openIssues、next、sources[{label,uri}]、coverage。source 必须为实际可读取的个人资料，不放密钥。若来源只有 Session 接口，先把有明确来源的接续简报保存为资源后再链接。工具返回直接展示摘要与下一步；脚本发布后调用 show_onboarding，不能只说“已保存到工作台”。后续日常更新用 onboarding=false。
+写入官方个人资源目录后读回，再 publish_work(onboarding=true, scopeRevision=<准备摘要前 get_state.onboarding.scopeRevision>, works=[...]) 或 workspace.py stdin 发布；onboarding=true 将摘要绑定当前范围。每卡含 id、title、project、goal、state、decisions、openIssues、next、sources[{label,uri}]、coverage。source 必须为实际可读取的个人资料，不放密钥。若来源只有 Session 接口，先把有明确来源的接续简报保存为资源后再链接。工具返回直接展示摘要与下一步；脚本发布后调用 show_onboarding，不能只说“已保存到工作台”。这个发布入口用于接入时的接续摘要；日常工作进展页直接从 OV 会话归档读取，不依赖 workspace.json 或重复 publish_work。
 
 摘要之后给“回顾这项工作 / 修正总结 / 开始新工作 / 稍后”。文字模式先展示同样的摘要、能力预期与具体动作，再用真实可用的原生选项；不能只泛问“想做什么”。选择后 choose_next 记录。点击“回顾这项工作”或旧版“继续这项工作”只授权读取来源、回顾进度与建议方向：在当前对话总结目标、已完成、当前进展、待解决事项，建议几个具体推进方向，然后等待用户下一条指令。卡片内历史 next 字段和旧待办不是执行授权；不修改业务文件、不启动测试或任务、不创建新任务、不为这次回顾额外保存 Markdown 或再次发布同一摘要卡。用户明确选择一个执行方向后才开始；用户明确要求新任务才创建。新建验证任务后必须 wait_threads 等待并读取结果，回到原任务更新已验证/未通过和具体缺口，不能把派发当成功。跨任务验证只传工作定位与目标，不塞完整历史答案；独立接续证据与本轮有背景的接续分别记录。不要强制日报或定时任务。
 
@@ -82,6 +82,7 @@ history.py collect <计划文件> 读取每个所选 Session 的最新可用概�
 
 - 用户说“打开我的 OpenViking 工作台”、查看工作台或在侧边栏打开时，一律调用 open_workspace_panel（show_workspace 是同义入口，也只返回 URL），随后用 open_in_codex(target={type:"browser",url:<返回地址>}, placement="right") 打开。不调用展示型工具制造工作台卡片，不需要先问是否打开侧边栏。若当前没有注册该工具，用 python3 <plugin-root>/scripts/panel.py start 取得地址后执行同样的 open_in_codex。CLI 没有侧边栏时给本地 URL，不宣称已打开。
 - 工作台的“目录”从 viking:// 根目录按当前公有云 API Key 的实际权限浏览，包含服务返回的共享与用户目录，不限定 resources/memories/peers 三个入口。目录树用 tree，逐层浏览用 list，预览用 read；不触发上传、修改、删除或 VikingBot。浏览范围扩大不改变个人归档规则：新产出仍写入用户已授权的个人目录。
+- “工作进展”按当前用户 sessions 下每个会话最新的 history/archive_N/.overview.md 展示，后台分批读取全部会话，标题和状态取 Session Title / Current State，时间取 L1 文件 modTime。不要用本地任务摘要或接续简报覆盖这份列表。点击展开显示完整 L1；接续指令只回顾进展、建议方向，等待用户新指令后才执行。
 - 工作台仅打开侧边栏；接入确认、协作选择、导入进度和接续摘要继续保留对话卡片。按需报告发布结果仍可用卡片展示；不要为了“打开工作台”重复发布报告或工作摘要。
 - 用户请求日报、周报、进展汇总、知识洞察，或卡片发回相应请求时，直接做报告。先确定用户时区和实际起止日期，读取范围内的相关资料、历史来源以及 Session 最新可用 Working Memory。日期按业务发生时间；不要把导入时间当工作时间。无相关记录时说明缺口，不生成虚构报告。
 - 报告按适合内容的结构组织：真实完成、进行中、有效决定、下一步；洞察需要证据和对当前工作的意义，不凑建议数量。注明资料覆盖和未验证事项。沿用同事原型的“概览 → 内容 → 来源 → 接续”交互，个人版不生成团队成员关系。

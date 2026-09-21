@@ -30,6 +30,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
      if(window.rejectKey){response({isError:true,content:[{type:'text',text:'连接权限不足，请核对 API Key。'}]});return;}
      v={...window.fixture,connection:{...window.fixture.connection,ready:false,restartRequired:true}};window.fixture=v;
     }
+    if(name==='get_session_progress')v={status:'complete',total:0,done:0,matched:0,items:[]};
     if(name==='tree_directory')v={content:[{type:'text',text:'Tree of viking:// (depth <= 2, 1 entries):\nresources/'}]};
     if(name==='list_directory')v={content:[{type:'text',text:'[dir] projects\n[file] report.md'}]};
     if(name==='read_file')v={content:[{type:'text',text:'# 来源正文\n已完成接口核对。\n<script>window.hacked=true</script>'}]};

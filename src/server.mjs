@@ -45,6 +45,8 @@ tool('choose_collaboration','用户选择采用或调整已展示的协作方式
 tool('import_status','查询当前已确认导入的抽取状态；仅检查状态，不重新导入。',{jobId:z.string().regex(/^[a-f0-9]{64}$/)},'import_status',{readOnly:true});
 tool('choose_next','保存用户在接续摘要或使用说明中选择的下一步。',{choice:z.enum(['start','save','later','continue','correct'])},'next',{appOnly:true});
 tool('publish_work','发布已经核对并归档读回的接续摘要。onboarding=true 时传入准备摘要前 get_state.onboarding.scopeRevision，且目标、进展、下一步、覆盖和来源必填。本次范围汇总后调用一次，返回独立摘要卡；不要为轮询同步状态重复调用或再 show_onboarding。',{onboarding:z.boolean().default(false),scopeRevision:z.string().optional(),works:z.array(z.object({id:z.string(),title:z.string(),project:z.string().optional(),goal:z.string().optional(),state:z.string(),decisions:z.string().optional(),openIssues:z.string().optional(),next:z.string(),coverage:z.string(),sources:z.array(z.object({label:z.string(),uri:z.string()})).min(1)}))},'publish_work',{view:args=>args.onboarding?'onboarding':'workspace'});
+tool('get_session_progress','按当前用户 sessions 的最新 archive L1 展示工作进展；后台分批读取全部会话。',{offset:z.number().int().nonnegative().default(0),query:z.string().max(200).default(''),refresh:z.boolean().default(false)},'session_progress',{appOnly:true,readOnly:true});
+tool('read_session_overview','读取工作进展对应的完整 archive L1。',{uri:z.string()},'session_detail',{appOnly:true,readOnly:true});
 tool('list_directory','列出当前公有云 Key 有权访问的目录，从 viking:// 根目录开始。',{uri:z.string()},'list',{appOnly:true,readOnly:true});
 tool('tree_directory','读取公有云目录树，最多两层、200 个节点；深入目录用 list_directory。',{uri:z.string().default('viking://')},'tree',{appOnly:true,readOnly:true});
 tool('read_file','读取当前公有云 Key 有权访问的文件，每次最多 200 行，支持原生图片内容。',{uri:z.string(),offset:z.number().int().nonnegative().default(0)},'read',{appOnly:true,readOnly:true});

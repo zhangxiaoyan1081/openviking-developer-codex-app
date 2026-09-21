@@ -2,7 +2,7 @@
 import json,sys,re
 from pathlib import Path
 from datetime import datetime,timezone
-import cloud,history,panel,connection,onboarding,workspace
+import cloud,history,panel,connection,onboarding,workspace,session_progress
 
 def state():
  c=connection.status()
@@ -23,6 +23,8 @@ def dispatch(action,value):
  if action=='connect_key':
   connection.select(revision=value['revision'],api_key=value['api_key']);return state()
  connection.require_ready()
+ if action=='session_progress':return session_progress.page(value)
+ if action=='session_detail':return session_progress.detail(value)
  if action=='rules_prepare':onboarding.prepare_rules(value);return state()
  if action=='rules_choose':onboarding.choose_rules(value);return state()
  if action=='next':onboarding.choose_next(value);return state()
