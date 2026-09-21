@@ -11,7 +11,7 @@ class HttpTests(unittest.TestCase):
   server=panel.ThreadingHTTPServer(('127.0.0.1',0),panel.Handler);server.token='test-token'
   thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start();base='http://127.0.0.1:'+str(server.server_port)
   try:
-   with urlopen(base+'/api/state') as r:self.assertTrue(json.load(r)['connected'])
+   with urlopen(base+'/api/state') as r:self.assertTrue(json.load(r)['configured'])
    data=json.dumps({'mode':'recent','days':90}).encode()
    with self.assertRaises(HTTPError) as error:urlopen(Request(base+'/api/scope',data=data,headers={'Content-Type':'application/json'}))
    self.assertEqual(error.exception.code,403);error.exception.close()

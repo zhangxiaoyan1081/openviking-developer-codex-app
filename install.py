@@ -11,9 +11,9 @@ def commands(lock):
  return ['bash','<verified-official-installer>','--harness','codex','--dist','github','--source','remote','--lang','zh','--url',cloud.ENDPOINT,'--yes']
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--configure-stdin',action='store_true');ap.add_argument('--replace-connection',action='store_true');ap.add_argument('--plan',action='store_true');a=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--configure-stdin',action='store_true');ap.add_argument('--replace-connection',action='store_true');ap.add_argument('--plan',action='store_true');ap.add_argument('--companion-only',action='store_true');a=ap.parse_args()
  lock=json.loads((ROOT/'upstream.lock.json').read_text())
- if a.plan:print(json.dumps({'official':commands(lock),'commit':lock['commit'],'endpoint':cloud.ENDPOINT,'companion':'ov-personal@ov-personal-cloud'},ensure_ascii=False));return
+ if a.plan:print(json.dumps({'official':None if a.companion_only else commands(lock),'commit':lock['commit'],'endpoint':cloud.ENDPOINT,'companion':'ov-personal@ov-personal-cloud'},ensure_ascii=False));return
  if sys.version_info<(3,10):raise RuntimeError('需要 Python 3.10 或以上。')
  for cmd in ('node','codex','git'):
   if not shutil.which(cmd):raise RuntimeError('请先安装 '+cmd+'。')
@@ -27,13 +27,14 @@ def main():
  cloud.credentials()
  # Authentication/read availability must be checked before replacing official registration.
  cloud.request('/mcp',{'jsonrpc':'2.0','id':1,'method':'tools/list'})
- url='https://raw.githubusercontent.com/volcengine/OpenViking/'+lock['commit']+'/'+lock['installerPath']
- raw=urlopen(url,timeout=45).read()
- if hashlib.sha256(raw).hexdigest()!=lock['installerSha256']:raise RuntimeError('官方安装文件校验失败。')
- with tempfile.TemporaryDirectory() as tmp:
-  script=Path(tmp)/'install.sh';script.write_bytes(raw)
-  env={**os.environ,'OPENVIKING_REPO_REF':lock['commit'],'OPENVIKING_REPO_URL':lock['repository']}
-  cmd=commands(lock);cmd[1]=str(script);subprocess.run(cmd,env=env,check=True)
+ if not a.companion_only:
+  url='https://raw.githubusercontent.com/volcengine/OpenViking/'+lock['commit']+'/'+lock['installerPath']
+  raw=urlopen(url,timeout=45).read()
+  if hashlib.sha256(raw).hexdigest()!=lock['installerSha256']:raise RuntimeError('官方安装文件校验失败。')
+  with tempfile.TemporaryDirectory() as tmp:
+   script=Path(tmp)/'install.sh';script.write_bytes(raw)
+   env={**os.environ,'OPENVIKING_REPO_REF':lock['commit'],'OPENVIKING_REPO_URL':lock['repository']}
+   cmd=commands(lock);cmd[1]=str(script);subprocess.run(cmd,env=env,check=True)
  dest=Path.home()/'.local/share/ov-personal/marketplace';dest.mkdir(parents=True,exist_ok=True)
  for name in ('plugins','.agents'):shutil.copytree(ROOT/name,dest/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
  subprocess.run(['codex','plugin','marketplace','add',str(dest)],check=True)

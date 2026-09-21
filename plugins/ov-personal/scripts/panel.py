@@ -30,8 +30,8 @@ class Handler(BaseHTTPRequestHandler):
    if u.path=='/':self.send(ASSET.read_text().replace('__TOKEN__',self.server.token),html=True)
    elif u.path=='/health':self.send({'app':'ov-personal','instance':self.server.token})
    elif u.path=='/api/state':
-    try:cloud.credentials();self.send({'connected':True,'scope':cloud.load('scope.json'),'workspace':cloud.load('workspace.json',{'works':[]}), 'imports':{k:sum(x.get('state')==k for x in cloud.load('import-ledger.json',{}).values()) for k in ('submitted','reused','unknown')}})
-    except cloud.CloudError as e:self.send({'connected':False,'message':str(e)})
+    from app_backend import state
+    self.send(state())
    elif u.path=='/api/list':self.send(cloud.rpc('list',{'uri':cloud.personal_uri(q.get('uri',['viking://user/default/resources'])[0])}))
    elif u.path=='/api/read':
     offset=int(q.get('offset',['0'])[0])
@@ -50,12 +50,12 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve():
  server=ThreadingHTTPServer(('127.0.0.1',0),Handler);server.token=secrets.token_hex(24)
- cloud.atomic(cloud.ROOT/'panel.json',{'url':'http://127.0.0.1:'+str(server.server_port)+'/','instance':server.token})
+ cloud.atomic(cloud.ROOT/'panel-v2.json',{'url':'http://127.0.0.1:'+str(server.server_port)+'/','instance':server.token})
  server.serve_forever()
 
 def start():
  import time
- path=cloud.ROOT/'panel.json'
+ path=cloud.ROOT/'panel-v2.json'
  try:
   state=json.loads(path.read_text());url=state['url'];u=urlsplit(url)
   if u.hostname=='127.0.0.1' and u.scheme=='http' and u.path=='/':
