@@ -12,6 +12,9 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
  try{
   await client.connect(transport);
   const {tools}=await client.listTools();assert.equal(tools.length,10);
+  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['review_import','show_onboarding','show_workspace']);
+  for(const name of ['get_state','publish_report','open_workspace_panel'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
+  const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
   assert.deepEqual(tools.find(x=>x.name==='confirm_import')._meta.ui.visibility,['app']);
   const result=await client.callTool({name:'show_onboarding',arguments:{}});
   assert.equal(result.isError,undefined);assert.equal(result.structuredContent.view,'onboarding');assert.equal(result.structuredContent.configured,false);

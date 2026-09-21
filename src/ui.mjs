@@ -57,6 +57,7 @@ export function createUI({call,send,expand,panel=false}){
   if(d.report!==undefined){const r=state.reports[Number(d.report)];main.innerHTML=nav()+`<h1>${esc(r.title)}</h1><p class="muted">${esc(r.period)} · ${esc(r.coverage)}</p><article class="report-body">${esc(r.body)}</article><hr>${sources(r.sources)}`;return;}
   run(async()=>{
    if(d.work!==undefined){const w=state.workspace.works[Number(d.work)];await notify(`使用 openviking-codex-app 接续「${w.title}」。下一步：${w.next}。先读取这些来源核对最新状态：${w.sources.map(x=>x.uri).join('、')}`);}
+   if(d.action==='reload'){location.reload();return;}
    if(d.action==='back'){scopeMode=null;onboarding();}
    if(d.action==='reset'){state.plan=null;scopeMode=null;onboarding();}
    if(d.action==='select'||d.action==='skip'){
@@ -73,5 +74,5 @@ export function createUI({call,send,expand,panel=false}){
    if(d.action==='expand'){if(expand)await expand();}
   });
  });
- return {render(value){scopeMode=null;state={...state,...value};if(value.view==='onboarding')onboarding();else workspace();},error:message};
+ return {render(value){scopeMode=null;state={...state,...value};if(value.view==='onboarding')onboarding();else workspace();},error:message,fail(text){revision++;$('#header-actions').innerHTML='';message('');main.innerHTML=`<h1>卡片暂时无法显示</h1><p class="muted">${esc(text)}</p><button data-action="reload">重新加载</button>`;}};
 }

@@ -15,7 +15,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
    const response=result=>event.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');
    if(m.method==='ui/notifications/size-changed'&&m.params.height)document.querySelector('iframe').style.height=m.params.height+'px';
    if(m.method==='ui/initialize')response({protocolVersion:m.params.protocolVersion,hostInfo:{name:'test-host',version:'1'},hostCapabilities:{serverTools:{},message:{text:{}},updateModelContext:{}},hostContext:{theme:'light',displayMode:'inline',availableDisplayModes:['inline','fullscreen']}});
-   if(m.method==='ui/notifications/initialized')event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:window.fixture}},'*');
+   if(m.method==='ui/notifications/initialized'&&!window.suppressResult)event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:window.fixture}},'*');
    if(m.method==='tools/call'){
     window.requests.push(m.params);let v={};const {name,arguments:a}=m.params;
     if(name==='select_scope')v={scope:a};
@@ -45,5 +45,19 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'目录',exact:true}).click();await frame.getByRole('button',{name:'▸ projects'}).click();await frame.getByRole('button',{name:'· report.md'}).click();await frame.locator('#preview pre').waitFor();await page.screenshot({path:'docs/screenshots/directory-card.png'});
  await page.evaluate(()=>window.rejectMessage=true);await render(fixture);await frame.getByRole('button',{name:'从现在开始 →'}).click();await frame.getByText(/选择已保留/).waitFor();
  await page.setViewportSize({width:420,height:700});await page.locator('iframe').evaluate(el=>{el.style.width='360px';el.style.height='610px';});await render(fixture);await page.screenshot({path:'docs/screenshots/onboarding-mobile.png'});assert.equal(await page.frames()[1].evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
- assert.deepEqual(errors,[]);console.log('App bridge: scope, confirmation, report request, directory preview, XSS escaping, rejected message and mobile passed.');
+ // A malformed/legacy background result must terminate loading, not create a ghost card.
+ await render({...fixture,view:undefined});
+ await frame.getByText('未收到卡片内容，请重试。').waitFor();
+ assert.equal(await frame.getByText('正在加载…',{exact:true}).count(),0);
+ await page.evaluate(value=>{window.fixture=value;},fixture);
+ await frame.getByRole('button',{name:'重新加载',exact:true}).click();
+ await frame.getByText('带上过去的工作',{exact:true}).waitFor();
+ // Hosts can deliver only text content; the payload still carries the explicit view.
+ await page.evaluate(value=>document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[{type:'text',text:JSON.stringify(value)}]}},'*'),fixture);
+ await frame.getByText('带上过去的工作',{exact:true}).waitFor();
+ // Lost initial result has a bounded wait; a late valid result can recover.
+ await page.evaluate(()=>{window.suppressResult=true;document.querySelector('iframe').contentWindow.location.reload();});
+ await frame.getByText('加载超时，请重试。').waitFor({timeout:18000});
+ await render(fixture);await frame.getByText('带上过去的工作',{exact:true}).waitFor();
+ assert.deepEqual(errors,[]);console.log('App bridge: scope, confirmation, report request, directory preview, XSS escaping, rejected message, mobile, missing result, reload and timeout recovery passed.');
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

@@ -16,9 +16,16 @@ function backend(action,args={}){return new Promise((resolve,reject)=>{
 });}
 function output(value){return {content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value};}
 function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}={}){
- registerAppTool(server,name,{description,inputSchema:schema,annotations:{readOnlyHint:readOnly,destructiveHint:false,openWorldHint:!['state','scope','confirm','review','publish_report'].includes(action)},_meta:{ui:{resourceUri:resource,visibility:appOnly?['app']:['model','app']}}},async(args)=>{
+ const config={description,inputSchema:schema,annotations:{readOnlyHint:readOnly,destructiveHint:false,openWorldHint:!['state','scope','confirm','review','publish_report'].includes(action)}};
+ // Only presentation tools create a card. App callbacks keep their visibility
+ // restriction without claiming a UI resource for every background request.
+ if(view)config._meta={ui:{resourceUri:resource,visibility:['model','app']}};
+ else if(appOnly)config._meta={ui:{visibility:['app']}};
+ const handler=async(args)=>{
   try{return output({...await backend(action,args),...(view?{view}:{})});}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}
- });
+ };
+ if(view)registerAppTool(server,name,config,handler);
+ else server.registerTool(name,config,handler);
 }
 tool('show_onboarding','展示接入卡片，让用户选择近期工作、项目或描述范围。不要为 onboarding 打开浏览器。',{},'state',{view:'onboarding',readOnly:true});
 tool('show_workspace','展示个人工作台：进展、目录、日报周报和知识洞察。',{},'state',{view:'workspace',readOnly:true});
