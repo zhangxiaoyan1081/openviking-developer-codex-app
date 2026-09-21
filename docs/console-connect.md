@@ -4,7 +4,7 @@
 
 服务地址：https://api.vikingdb.cn-beijing.volces.com/openviking
 API Key：{{OPENVIKING_API_KEY}}
-插件仓库：https://github.com/zhangxiaoyan1081/ov-personal
+插件仓库：https://github.com/zhangxiaoyan1081/openviking-developer-codex-app
 
 ## 执行
 

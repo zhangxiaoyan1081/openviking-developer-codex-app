@@ -1,4 +1,4 @@
-# OpenViking 个人版
+# OpenViking Developer Codex App
 
 从火山控制台复制接入指令，让 Codex 带入已有工作，再接着做。
 
@@ -9,6 +9,36 @@
 控制台填入 API Key 后输出 [接入指令](docs/console-connect.md)，用户粘贴给 Codex。Agent 安装并验证后打开工作台。
 
 工作台支持：近期 7/30/90 天的全部工作、多项目、自然语言范围；个人资料浏览；带来源的工作进展与下一步。选范围仅保存选择，由 Codex 核对清单后执行。工作卡片通过复制指令接回 Codex。
+
+## 如何尝试
+
+### 先打开工作台
+
+已有火山连接时，可以直接运行，不必先重装官方插件：
+
+```bash
+python3 plugins/ov-personal/scripts/panel.py start
+```
+
+打开命令返回的本机地址即可。页面复用 `~/.openviking/ovcli.conf`；未配置时会显示接入入口。该命令不安装插件、不上传历史；浏览资料会使用已有连接读取个人空间。选择范围只保存在本机，回到 Codex 核对清单后才导入。
+
+### 走完整 onboarding
+
+在 Codex 中打开本仓库，将 [接入指令](docs/console-connect.md) 的 API Key 占位符替换后粘贴给 Codex。也可以在已有正确连接时直接发送：
+
+> 请按这个仓库的 docs/console-connect.md 为我接入火山 OpenViking。复用已有火山连接，先核对官方插件版本，再完成安装验证并打开工作台；历史范围由我选择。
+
+安装路径会重新注册锁定版本的官方插件；仅看界面时使用上面的 panel 命令即可。运行 `python3 install.py --plan` 可以先查看安装目标，不会执行安装。需要 Hook 信任或新任务加载时，按 Codex 的实际提示继续。
+
+从另一台机器获取私有仓库：
+
+```bash
+gh repo clone zhangxiaoyan1081/openviking-developer-codex-app
+cd openviking-developer-codex-app
+python3 install.py --plan
+```
+
+仓库与本地项目名称使用 `openviking-developer-codex-app`；内部插件 ID 暂保留 `ov-personal`，避免让命名调整影响安装与状态路径。
 
 ## 官方依赖
 
