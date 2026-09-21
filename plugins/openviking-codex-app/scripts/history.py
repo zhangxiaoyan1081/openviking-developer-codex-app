@@ -94,6 +94,12 @@ def status(plan,limit=3):
  connection.require_ready();validate(plan)
  key=digest(plan);name='imports/'+key+'.json'
  state=cloud.load(name,{'items':{}});updates={}
+ root=cloud.folder();root.mkdir(parents=True,exist_ok=True,mode=0o700)
+ # apply holds this lock across network writes. Progress must remain responsive
+ # during large imports; a later poll will persist remote status after apply.
+ with open(root/'import.lock','a') as lock:
+  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  except BlockingIOError:return state
  # Oldest checked first, at most three calls per request; never holds the write lock during I/O.
  candidates=sorted(state['items'].items(),key=lambda pair:pair[1].get('checkedAt',''))
  count=0
@@ -106,9 +112,9 @@ def status(plan,limit=3):
    updates[source]={'task':item['task'],'checkedAt':onboarding.now()}
   elif not task and item.get('receipt',{}).get('status')=='skipped':
    updates[source]={'task':{'status':'skipped'},'checkedAt':onboarding.now()}
- root=cloud.folder();root.mkdir(parents=True,exist_ok=True,mode=0o700)
  with open(root/'import.lock','a') as lock:
-  fcntl.flock(lock,fcntl.LOCK_EX)
+  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  except BlockingIOError:return cloud.load(name,{'items':{}})
   latest=cloud.load(name,{'items':{}})
   ledger=cloud.load('import-ledger.json',{})
   for source,update in updates.items():

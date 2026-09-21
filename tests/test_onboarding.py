@@ -1,4 +1,4 @@
-import json,unittest
+import json,unittest,fcntl
 from unittest.mock import patch
 import test_personal as fixtures
 import cloud,history,onboarding,app_backend,workspace
@@ -116,3 +116,11 @@ class OnboardingTests(unittest.TestCase):
   self.prepare(block='A private rule.')
   public=json.dumps(app_backend.state())
   self.assertNotIn('A private rule.',public);self.assertNotIn(str(self.root),public)
+
+ def test_poll_does_not_block_or_query_while_import_is_writing(self):
+  plan=self.plan()
+  with patch.object(cloud,'request',return_value={'result':{'task_id':'t'}}):history.apply(plan,history.digest(plan))
+  with open(cloud.folder()/'import.lock','a') as lock,patch.object(cloud,'request') as request:
+   fcntl.flock(lock,fcntl.LOCK_EX)
+   self.assertEqual(history.status(plan)['items']['source-a']['state'],'submitted')
+   request.assert_not_called()
