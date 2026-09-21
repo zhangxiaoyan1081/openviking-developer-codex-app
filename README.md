@@ -69,7 +69,7 @@ python3 plugins/openviking-codex-app/scripts/panel.py start
 ## 结构与边界
 
 - `src/server.mjs`：标准 MCP Apps 工具和 HTML 资源，stdio 运行；凭据留在 Python 云端客户端中。
-- `src/explorer.mjs`：从 `viking://` 根目录浏览，目录树、路径导航、筛选、隐藏文件、L0/L1、Markdown 预览/源码、JSON 与原生图片预览；大文本每次 200 行追加读取。
+- `src/explorer.mjs`：从 `viking://` 根目录浏览，双栏完整目录树、`user/default` 层级、路径导航、隐藏文件、自动 L0/L1、预览/源码/路径切换、JSON 与原生图片预览；大文本每次 200 行追加读取。
 - `src/app.mjs`、`src/ui.mjs`：对话卡片、目录与报告。点击选择保存本地状态，发送消息由当前 Agent 接续，不伪造执行完成。
 - `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离；只有连接明确确认后才能导入。
 - `scripts/history.py`：已授权计划的分批导入、commit、去重和 Working Memory 读取。请求结果未知时不自动重放。

@@ -1,3 +1,4 @@
+import {createElement,Folder,FolderOpen,FileText,ChevronRight,ChevronDown,ArrowLeft,RotateCw} from 'lucide';
 import {marked} from 'marked';
 import DOMPurify from 'dompurify';
 const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,75 +27,69 @@ export function parseTree(r,base){
 }
 function markdown(text){return DOMPurify.sanitize(marked.parse(text,{gfm:true}),{FORBID_TAGS:['img','style','iframe','form','input','button'],ALLOWED_URI_REGEXP:/^(?:(?:https?|mailto|viking):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i});}
 export function createExplorer({host,call}){
- let current=ROOT,selected=null,generation=0,previewGeneration=0,items=[],cache=new Map(),expanded=new Set([ROOT]),filter='',hidden=true,sort='name',count=100,previewText='',blocks=[],offset=0,hasMore=false,mode='preview',level='content',loading=false;
- let disposed=false;
+ let current=ROOT,selected=null,selection=0,disposed=false,cache=new Map(),expanded=new Set([ROOT]),pending=new Map(),errors=new Map(),hidden=true,level='abstract',mode='preview',documents={};
  const $=q=>host.querySelector(q);
- function rows(list,tree=false,depth=0){return list.map(x=>tree?(x.dir?`<div><button class="tree-entry ${current===x.uri?'selected':''}" data-tree="${esc(x.uri)}" style="padding-left:${12+depth*14}px" aria-expanded="${expanded.has(x.uri)}"><span>${expanded.has(x.uri)?'▾':'▸'}</span><span class="file-icon">▱</span><span>${esc(x.name)}</span></button>${expanded.has(x.uri)?rows(cache.get(x.uri)||[],true,depth+1):''}</div>`:''):`<button class="entry ${selected?.uri===x.uri?'selected':''}" data-entry="${esc(x.uri)}" title="${esc(x.name)}"><span class="file-icon">${x.dir?'▱':'≡'}</span><span class="filename">${esc(x.name)}</span>${x.dir?'<span>›</span>':x.size!==undefined?`<small>${esc(x.size)}</small>`:''}</button>`).join('');}
- function tree(){if($('#tree'))$('#tree').innerHTML=`<button class="tree-entry ${current===ROOT?'selected':''}" data-nav="viking://">▾ OpenViking</button>`+rows(cache.get(ROOT)||[],true,1);}
- function listing(){
-  if(!$('#listing'))return;
-  const visible=items.filter(x=>(hidden||!x.name.startsWith('.'))&&x.name.toLowerCase().includes(filter.toLowerCase())).sort((a,b)=>Number(b.dir)-Number(a.dir)||(sort==='name'?a.name.localeCompare(b.name):b.name.localeCompare(a.name)));
-  $('#listing').innerHTML=rows(visible.slice(0,count))+(visible.length>count?'<button class="load-more" data-load>显示更多</button>':'')+(!visible.length?'<p class="empty">'+(filter?'没有匹配的文件':'目录为空')+'</p>':'');
-  $('#file-count').textContent=`${visible.length} 项`;
+ const icon=node=>createElement(node,{'aria-hidden':'true',width:16,height:16,'stroke-width':1.7}).outerHTML;
+ const order=(a,b)=>{const rank=x=>x.uri==='viking://user'?0:x.uri==='viking://resources'?1:2;return rank(a)-rank(b)||Number(b.dir)-Number(a.dir)||a.name.localeCompare(b.name);};
+ function rows(uri,depth=0){return (cache.get(uri)||[]).filter(x=>hidden||!x.name.startsWith('.')).sort(order).map(x=>`<div role="treeitem" aria-selected="${selected?.uri===x.uri}" ${x.dir?`aria-expanded="${expanded.has(x.uri)}"`:''}><div class="tree-row ${selected?.uri===x.uri?'selected':''}" style="padding-left:${8+depth*16}px">${x.dir?`<button class="tree-toggle" data-toggle="${esc(x.uri)}" aria-label="${expanded.has(x.uri)?'收起':'展开'} ${esc(x.name)}">${icon(expanded.has(x.uri)?ChevronDown:ChevronRight)}</button>`:'<span class="tree-spacer"></span>'}<button class="tree-entry" data-entry="${esc(x.uri)}" title="${esc(x.uri)}">${icon(x.dir?(expanded.has(x.uri)?FolderOpen:Folder):FileText)}<span>${esc(x.name)}</span></button></div>${x.dir&&expanded.has(x.uri)?`<div role="group">${rows(x.uri,depth+1)}${pending.has(x.uri)?'<div class="tree-status">读取中…</div>':''}${errors.has(x.uri)?`<button class="tree-status" data-retry-tree="${esc(x.uri)}">${esc(errors.get(x.uri))} · 重试</button>`:''}${cache.has(x.uri)&&!cache.get(x.uri).length?'<div class="tree-status">空目录</div>':''}</div>`:''}</div>`).join('');}
+ function tree(){if($('#tree'))$('#tree').innerHTML=rows(ROOT)+(errors.has(ROOT)?`<button data-retry-tree="${ROOT}">${esc(errors.get(ROOT))} · 重试</button>`:'');}
+ function toolbar(){const parts=current.slice(9).split('/').filter(Boolean);$('.path').innerHTML=`<button data-nav="${ROOT}">viking://</button>`+parts.map((p,i)=>`${i?'<span>/</span>':''}<button data-nav="${esc(ROOT+parts.slice(0,i+1).join('/'))}">${esc(p)}</button>`).join('');$('.uri-form input').value=current;$('[data-up]').disabled=current===ROOT;}
+ function shell(){host.innerHTML=`<div class="explorer-toolbar"><button data-up aria-label="上一级">${icon(ArrowLeft)}</button><div class="path"></div><button data-reload aria-label="刷新目录">${icon(RotateCw)}</button></div><form class="uri-form"><input aria-label="目录路径" spellcheck="false"><button>前往</button></form><div class="explorer-layout"><aside class="tree-pane"><div class="pane-title"><span>目录</span><label><input id="show-hidden" type="checkbox" checked>隐藏文件</label></div><div id="tree" role="tree" aria-label="OpenViking 目录"></div></aside><section class="preview" id="preview" aria-label="内容预览"></section></div>`;toolbar();tree();}
+ async function children(uri,refresh=false){
+  if(!refresh&&cache.has(uri)){tree();return cache.get(uri);}
+  if(pending.has(uri)){tree();return pending.get(uri);}
+  const task=(async()=>{try{const result=await call('list_directory',{uri});if(disposed)return [];const entries=parseEntries(result,uri);cache.set(uri,entries);errors.delete(uri);return entries;}catch(e){if(!disposed)errors.set(uri,e.message);return [];}finally{pending.delete(uri);if(!disposed)tree();}})();pending.set(uri,task);tree();return task;
  }
- function shell(){
-  const parts=current.slice(9).split('/').filter(Boolean);
-  host.innerHTML=`<div class="explorer-toolbar"><button data-up aria-label="上一级" ${current===ROOT?'disabled':''}>←</button><div class="path"><button data-nav="viking://">viking://</button>${parts.map((p,i)=>`<button data-nav="${esc(ROOT+parts.slice(0,i+1).join('/'))}">${esc(p)}</button>${i<parts.length-1?'<span>/</span>':''}`).join('')}</div><button data-reload aria-label="刷新目录">↻</button></div><form class="uri-form"><input aria-label="目录路径" value="${esc(current)}" spellcheck="false"><button>前往</button></form><div class="explorer-layout"><aside class="tree-pane"><div class="pane-title">目录</div><div id="tree"></div></aside><section class="files-pane"><div class="file-controls"><input id="file-filter" type="search" aria-label="筛选当前目录" placeholder="筛选文件" value="${esc(filter)}"><label><input id="show-hidden" type="checkbox" ${hidden?'checked':''}>显示隐藏文件</label><select id="file-sort" aria-label="排序"><option value="name">名称 A–Z</option><option value="reverse" ${sort==='reverse'?'selected':''}>名称 Z–A</option></select></div><div class="pane-title"><span>${esc(parts.at(-1)||'OpenViking')}</span><span id="file-count"></span></div><div id="listing" class="listing">正在读取…</div></section><section class="preview" id="preview"><div class="empty">选择文件查看内容</div></section></div>`;
-  tree();
- }
- async function navigate(uri,{refresh=false}={}){
-  if(disposed)return;current=uri;selected=null;filter='';count=100;previewGeneration++;const gen=++generation;shell();
-  let p=uri;while(p!==ROOT){expanded.add(p);p=parentURI(p);}expanded.add(ROOT);
-  try{
-   const r=await call('list_directory',{uri});if(disposed||gen!==generation)return;
-   items=parseEntries(r,uri);cache.set(uri,items);tree();listing();
-   $('#preview').innerHTML=`<div class="preview-heading"><h2>${esc(uri===ROOT?'OpenViking':uri.split('/').pop())}</h2><span class="muted">${items.filter(x=>x.dir).length} 个目录 · ${items.filter(x=>!x.dir).length} 个文件</span></div><div class="preview-tabs"><button data-level="abstract">L0 摘要</button><button data-level="overview">L1 概览</button></div><div class="empty">选择文件查看内容，或查看目录概览。</div>`;
-  }catch(e){if(!disposed&&gen===generation)$('#listing').innerHTML=`<p role="alert">${esc(e.message)}</p><button data-reload>重试</button>`;}
- }
+ const activeDoc=()=>documents[selected?.dir?level:'content'];
  function preview(){
-  if(!$('#preview')||!selected)return;
-  const isMd=/\.(md|markdown|mdx)$/i.test(selected.uri),isJson=/\.(json|jsonl|ndjson)$/i.test(selected.uri);
-  let shown=previewText;
-  if(isJson&&mode==='preview'){try{shown=JSON.stringify(JSON.parse(shown),null,2);}catch{}}
-  const media=blocks.filter(x=>(x.type==='image'&&/^image\/(png|jpeg|gif|webp)$/.test(x.mimeType))||(x.type==='audio'&&/^audio\/(wav|mpeg|mp3|ogg)$/.test(x.mimeType))).map(x=>x.type==='image'?`<img class="file-image" alt="${esc(selected.name)}" src="data:${esc(x.mimeType)};base64,${esc(x.data)}">`:`<audio controls src="data:${esc(x.mimeType)};base64,${esc(x.data)}"></audio>`).join('');
-  $('#preview').innerHTML=`<div class="preview-heading"><h2>${esc(selected.name)}</h2><div class="muted file-uri">${esc(selected.uri)}</div></div><div class="preview-tabs">${isMd||isJson?`<button data-mode="preview" aria-pressed="${mode==='preview'}">预览</button><button data-mode="source" aria-pressed="${mode==='source'}">源码</button>`:''}<button data-copy>复制路径</button></div><div class="preview-content">${media}${isMd&&mode==='preview'?`<article class="markdown-body">${markdown(shown)}</article>`:`<pre>${esc(shown)}</pre>`}${!media&&!shown?'<p class="muted">没有更多内容。</p>':''}</div>${hasMore?'<button class="load-more" data-more-file>继续读取</button>':''}`;
+  if(disposed||!selected)return;
+  const doc=activeDoc(),isDir=selected.dir;
+  let body='';
+  if(!doc||doc.loading&&!doc.text)body='<p class="muted">正在读取…</p>';
+  else if(mode==='path')body=`<div class="path-view"><code>${esc(doc.uri)}</code><button data-copy>复制路径</button></div>`;
+  else if(doc.error)body=`<p role="alert">${esc(doc.error)}</p><button data-retry-file>重试</button>`;
+  else{
+   let shown=doc.text;if(isDir&&mode==='preview')shown=shown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/,'');const md=/\.(md|markdown|mdx)$/i.test(doc.uri),json=/\.(json|jsonl|ndjson)$/i.test(doc.uri);
+   if(json&&mode==='preview')try{shown=JSON.stringify(JSON.parse(shown),null,2);}catch{}
+   const media=mode==='preview'?doc.blocks.filter(x=>(x.type==='image'&&/^image\/(png|jpeg|gif|webp)$/.test(x.mimeType))||(x.type==='audio'&&/^audio\/(wav|mpeg|mp3|ogg)$/.test(x.mimeType))).map(x=>x.type==='image'?`<img class="file-image" alt="${esc(selected.name)}" src="data:${esc(x.mimeType)};base64,${esc(x.data)}">`:`<audio controls src="data:${esc(x.mimeType)};base64,${esc(x.data)}"></audio>`).join(''):'';
+   body=media+(md&&mode==='preview'?`<article class="markdown-body">${markdown(shown)}</article>`:`<pre>${esc(shown)}</pre>`)+(!shown&&!media?'<p class="muted">暂无内容</p>':'')+(doc.more?`<button class="load-more" data-more-file ${doc.loading?'disabled':''}>${doc.loading?'读取中…':'继续读取'}</button>`:'');
+  }
+  $('#preview').innerHTML=`<div class="preview-heading"><h2>${icon(isDir?Folder:FileText)}${esc(selected.name)}</h2></div>${isDir?`<div class="preview-tabs level-tabs" role="tablist" aria-label="目录内容"><button role="tab" data-level="abstract" aria-selected="${level==='abstract'}">摘要 <span>L0</span></button><button role="tab" data-level="overview" aria-selected="${level==='overview'}">概览 <span>L1</span></button></div>`:''}<div class="preview-tabs view-tabs" role="tablist" aria-label="查看方式">${[['preview','预览'],['source','源码'],['path','路径']].map(([value,label])=>`<button role="tab" data-mode="${value}" aria-selected="${mode===value}">${label}</button>`).join('')}</div><div class="preview-content" role="tabpanel">${isDir&&errors.has(selected.uri)?`<p role="alert">${esc(errors.get(selected.uri))}</p>`:''}${body}</div>`;
   $('#preview').querySelectorAll('a').forEach(a=>{a.target='_blank';a.rel='noopener noreferrer';});
  }
- async function read(entry,more=false){
-  selected=entry;mode=more?mode:'preview';level='content';const gen=++previewGeneration;if(!more){previewText='';blocks=[];offset=0;}loading=true;
-  $('#preview').innerHTML=`<p class="muted">正在读取 ${esc(entry.name)}…</p>`;listing();
-  try{
-   const r=await call('read_file',{uri:entry.uri,offset});if(disposed||gen!==previewGeneration)return;
-   const part=content(r);previewText+=(more&&previewText&&!previewText.endsWith('\n')?'\n':'')+part;blocks.push(...(r.content||[]).filter(x=>x.type!=='text'));offset+=200;
-   // A full page may end at EOF. Only offer another bounded read; never imply completeness.
-   hasMore=part.replace(/\n$/,'').split('\n').length>=200&&!!part;preview();
-  }catch(e){if(!disposed&&gen===previewGeneration)$('#preview').innerHTML=`<p role="alert">${esc(e.message)}</p><button data-retry-file>重试</button>`;}
-  finally{if(gen===previewGeneration)loading=false;}
+ async function readDoc(key,uri,gen,more=false){
+  const doc=more?documents[key]:{uri,text:'',blocks:[],offset:0,more:false};documents[key]=doc;doc.loading=true;doc.error='';preview();
+  try{const r=await call('read_file',{uri,offset:doc.offset});if(disposed||gen!==selection)return;const raw=content(r);const part=selected.dir&&/^\(nothing found at [^\n]+\)\s*$/.test(raw)?'':raw;doc.text+=(more&&doc.text&&!doc.text.endsWith('\n')?'\n':'')+part;doc.blocks.push(...(r.content||[]).filter(x=>x.type!=='text'));doc.offset+=200;doc.more=!!part&&part.replace(/\n$/,'').split('\n').length>=200;
+  }catch(e){if(disposed||gen!==selection)return;doc.error=e.message;}finally{doc.loading=false;if(!disposed&&gen===selection)preview();}
  }
- async function summary(kind){
-  const entry={name:kind==='abstract'?'L0 摘要':'L1 概览',uri:join(current,kind==='abstract'?'.abstract.md':'.overview.md')};await read(entry);level=kind;
+ async function select(entry,{refresh=false}={}){
+  if(disposed)return;const gen=++selection;selected=entry;current=entry.dir?entry.uri:parentURI(entry.uri);documents={};mode='preview';level='abstract';
+  let p=current;while(p!==ROOT){expanded.add(p);p=parentURI(p);}toolbar();tree();preview();
+  if(entry.dir)await Promise.all([children(entry.uri,refresh),readDoc('abstract',join(entry.uri,'.abstract.md'),gen),readDoc('overview',join(entry.uri,'.overview.md'),gen)]);
+  else await readDoc('content',entry.uri,gen);
+  if(!disposed&&gen===selection)preview();
  }
- async function loadTree(){
-  try{const result=await call('tree_directory',{uri:ROOT});if(disposed)return;const parsed=parseTree(result,ROOT);for(const [u,entries] of parsed.map){if(!cache.has(u))cache.set(u,entries);}tree();}catch{/* Listing is authoritative; tree capability is optional on older cloud endpoints. */}
- }
- host.addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();const uri=host.querySelector('.uri-form input').value.trim();if(uri.startsWith(ROOT))navigate(uri);else host.querySelector('.uri-form input').setCustomValidity('请输入 viking:// 路径');});
- host.addEventListener('input',e=>{if(e.target.id==='file-filter'){filter=e.target.value;count=100;listing();}else e.target.setCustomValidity?.('');});
- host.addEventListener('change',e=>{if(e.target.id==='show-hidden'){hidden=e.target.checked;listing();}if(e.target.id==='file-sort'){sort=e.target.value;listing();}});
+ async function navigate(uri,options){await select({uri,name:uri===ROOT?'OpenViking':uri.split('/').pop(),dir:true},options);}
+ async function reveal(uri){const ancestors=[];let p=parentURI(uri);while(p!==ROOT){ancestors.unshift(p);p=parentURI(p);}await children(ROOT);for(const ancestor of ancestors){expanded.add(ancestor);await children(ancestor);}tree();}
+ async function open(uri){await reveal(uri);if(disposed)return;const entry=(cache.get(parentURI(uri))||[]).find(x=>x.uri===uri);await select(entry||{uri,name:uri.split('/').pop(),dir:false});}
+ async function loadTree(){try{const r=await call('tree_directory',{uri:ROOT});if(disposed)return;const parsed=parseTree(r,ROOT);if(!cache.has(ROOT))cache.set(ROOT,parsed.map.get(ROOT)||[]);tree();}catch{/* list remains authoritative, including the canonical user identity. */}}
+ host.addEventListener('submit',async e=>{e.preventDefault();e.stopPropagation();const input=$('.uri-form input'),uri=input.value.trim();if(uri.startsWith(ROOT)){const value=uri===ROOT?ROOT:uri.replace(/\/$/,'');await reveal(value);await navigate(value);}else input.setCustomValidity('请输入 viking:// 路径');});
+ host.addEventListener('input',e=>e.target.setCustomValidity?.(''));
+ host.addEventListener('change',e=>{if(e.target.id==='show-hidden'){hidden=e.target.checked;tree();}});
  host.addEventListener('click',async e=>{
-  const link=e.target.closest('a');if(link){const href=link.getAttribute('href')||'';if(href.startsWith(ROOT)||(!/^[a-z][a-z\d+.-]*:/i.test(href)&&!href.startsWith('#'))){e.preventDefault();e.stopPropagation();const uri=href.startsWith(ROOT)?href:join(parentURI(selected.uri),href);await open(uri);}return;}
+  const link=e.target.closest('a');if(link){const href=link.getAttribute('href')||'';if(href.startsWith(ROOT)||(!/^[a-z][a-z\d+.-]*:/i.test(href)&&!href.startsWith('#'))){e.preventDefault();e.stopPropagation();await open(href.startsWith(ROOT)?href:join(parentURI(activeDoc().uri),href));}return;}
   const b=e.target.closest('button');if(!b)return;e.stopPropagation();const d=b.dataset;
   if(d.nav)await navigate(d.nav);
   if('up'in d)await navigate(parentURI(current));
-  if('reload'in d){cache.clear();await navigate(current,{refresh:true});loadTree();}
-  if(d.tree){const wasOpen=expanded.has(d.tree);if(wasOpen&&current===d.tree){expanded.delete(d.tree);tree();}else{expanded.add(d.tree);await navigate(d.tree);}}
-  if(d.entry){const x=items.find(x=>x.uri===d.entry);if(x?.dir)await navigate(x.uri);else if(x)await read(x);}
-  if('load'in d){count+=100;listing();}
-  if(d.level)await summary(d.level);
+  if('reload'in d){const entry=selected;await children(current,true);if(entry)await select(entry);}
+  if(d.toggle){if(expanded.has(d.toggle)){expanded.delete(d.toggle);tree();}else{expanded.add(d.toggle);await children(d.toggle);}}
+  if(d.entry){const entry=(cache.get(parentURI(d.entry))||[]).find(x=>x.uri===d.entry);if(entry)await select(entry);}
+  if(d.retryTree)await children(d.retryTree,true);
+  if(d.level){level=d.level;mode='preview';preview();}
   if(d.mode){mode=d.mode;preview();}
-  if('moreFile'in d&&!loading)await read(selected,true);
-  if('retryFile'in d)await read(selected);
-  if('copy'in d){try{await navigator.clipboard.writeText(selected.uri);b.textContent='已复制';}catch{b.textContent='请复制上方路径';}}
+  if('moreFile'in d&&!activeDoc()?.loading)await readDoc(selected.dir?level:'content',activeDoc().uri,selection,true);
+  if('retryFile'in d)await readDoc(selected.dir?level:'content',activeDoc().uri,selection);
+  if('copy'in d){try{await navigator.clipboard.writeText(activeDoc().uri);b.textContent='已复制';}catch{b.textContent='请复制路径';}}
  });
- async function open(uri){const parent=parentURI(uri);await navigate(parent);if(!disposed)await read({uri,name:uri.split('/').pop()});}
- return {async mount(uri=ROOT){await navigate(uri);await loadTree();},open,dispose(){disposed=true;generation++;previewGeneration++;}};
+ return {async mount(uri=ROOT){shell();const previewTask=navigate(uri),treeTask=loadTree();await children(ROOT);if(disposed)return;if((cache.get(ROOT)||[]).some(x=>x.uri==='viking://user')){expanded.add('viking://user');const users=await children('viking://user');for(const user of users){expanded.add(user.uri);await children(user.uri);}tree();}await Promise.all([previewTask,treeTask]);},open,dispose(){disposed=true;selection++;}};
 }

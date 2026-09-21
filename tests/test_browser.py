@@ -14,6 +14,14 @@ class BrowserTests(unittest.TestCase):
     app_backend.dispatch('list',{'uri':uri})
     self.assertEqual(request.call_args.args[1]['params']['arguments']['uri'],uri)
   with self.assertRaises(cloud.CloudError):cloud.personal_uri('viking://resources')
+ def test_user_alias_restores_canonical_identity(self):
+  with patch.object(cloud,'request',return_value={'result':{'content':[{'type':'text','text':'[dir] memories\n[dir] resources'}]}}) as request:
+   result=app_backend.dispatch('list',{'uri':'viking://user'})
+   self.assertEqual(result['structuredContent']['entries'],[{'name':'default','uri':'viking://user/default','is_dir':True}])
+   self.assertEqual(request.call_args.args[1]['params']['arguments'],{'uri':'viking://user/default'})
+   self.assertNotIn('api_key',json.dumps(result))
+  with patch.object(cloud,'request',return_value={'result':{'isError':True}}):
+   with self.assertRaises(cloud.CloudError):app_backend.dispatch('list',{'uri':'viking://user'})
  def test_bad_paths_never_reach_cloud(self):
   for uri in ['https://evil.test/a','file:///tmp/a','viking://user/../secrets','viking://user/%2e%2e/secrets','viking://user/a\\b','viking://user/a?query','viking://user/a\n']:
    with patch.object(cloud,'request') as request:

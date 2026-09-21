@@ -16,6 +16,7 @@
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.30.0",
     "dompurify": "3.4.15",
+    "lucide": "0.545.0",
     "marked": "15.0.12",
     "zod": "4.3.6"
   },

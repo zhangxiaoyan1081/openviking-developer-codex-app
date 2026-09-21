@@ -41,7 +41,16 @@ def dispatch(action,value):
   plan=cloud.load('review.json')
   if not plan or plan['hash']!=value['hash']:raise ValueError('清单已更新，请重新查看。')
   plan['confirmed']=True;cloud.save('review.json',plan);return state()
- if action=='list':return cloud.browse_rpc('list',{'uri':cloud.browse_uri(value['uri'])})
+ if action=='list':
+  uri=cloud.browse_uri(value['uri'])
+  if uri=='viking://user':
+   # The commercial MCP exposes user as an alias for the authenticated user's
+   # contents. Verify the canonical directory before exposing its identity node.
+   c=cloud.credentials();user=c.get('user') or c.get('user_id') or 'default'
+   root='viking://user/'+user
+   cloud.browse_rpc('list',{'uri':root})
+   return {'structuredContent':{'entries':[{'name':user,'uri':root,'is_dir':True}]},'content':[]}
+  return cloud.browse_rpc('list',{'uri':uri})
  if action=='tree':return cloud.browse_rpc('tree',{'uri':cloud.browse_uri(value.get('uri','viking://')),'level_limit':2,'node_limit':200})
  if action=='read':
   uri=cloud.browse_uri(value['uri']);offset=int(value.get('offset',0))
