@@ -23,8 +23,8 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 
 - 新接入未提供 Key：show_onboarding(step="connection")。已提供 Key 且验证通过可跳过重复输入，但继续展示后续卡片。
 - prepare_collaboration 直接展示协作方案卡，已有规则也展示“沿用这个方式 / 调整”。规则应用落盘后再 show_onboarding，进入范围选择。
-- review_import 直接展示清单；确认后立即 show_onboarding 展示整理阶段，再运行已授权的导入。运行较长时让当前执行工具让出控制并更新进度，不等导入全部结束才第一次展示。
-- publish_work 直接展示接续摘要，publish_report 直接展示工作台；无需为了同一结果重复 show。本地保存 Markdown、脚本写工作台都不算已展示；若走脚本但 App 工具可用，必须补一次 show_onboarding 或 show_workspace。
+- review_import 直接展示清单；用户在卡片确认后，原卡片自动切换到整理进度，不再调用 show_onboarding 新增同一张进度卡，再运行已授权的导入。用户通过文字确认且没有进度卡时才调用一次 show_onboarding。运行较长时让当前执行工具让出控制并更新进度，不等导入全部结束才第一次展示。
+- publish_work 汇总本次范围内的工作后只调用一次，单独展示接续摘要；原同步卡片只更新同步状态，不变成摘要。不要为轮询进度、更新抽取状态或重复相同摘要再次 publish_work/show_onboarding。publish_report 直接展示工作台；无需为了同一结果重复 show。本地保存 Markdown、脚本写工作台都不算已展示；若走脚本但 App 工具可用，必须补一次 show_onboarding 或 show_workspace。
 - 正常接入不能因为不再提示卡片缺失而省略卡片调用。卡片失败、文本兜底只表示流程可继续，不算可视化验收通过。
 
 ## 必须完成的流程
@@ -76,7 +76,7 @@ history.py collect <计划文件> 读取每个所选 Session 的最新可用概�
 
 写入官方个人资源目录后读回，再 publish_work(onboarding=true, scopeRevision=<准备摘要前 get_state.onboarding.scopeRevision>, works=[...]) 或 workspace.py stdin 发布；onboarding=true 将摘要绑定当前范围。每卡含 id、title、project、goal、state、decisions、openIssues、next、sources[{label,uri}]、coverage。source 必须为实际可读取的个人资料，不放密钥。若来源只有 Session 接口，先把有明确来源的接续简报保存为资源后再链接。工具返回直接展示摘要与下一步；脚本发布后调用 show_onboarding，不能只说“已保存到工作台”。后续日常更新用 onboarding=false。
 
-摘要之后给“继续这项工作 / 修正总结 / 开始新工作 / 稍后”。文字模式先展示同样的摘要、能力预期与具体动作，再用真实可用的原生选项；不能只泛问“想做什么”。选择后 choose_next 记录，默认当前任务继续；用户明确要求新任务才创建。新建验证任务后必须 wait_threads 等待并读取结果，回到原任务更新已验证/未通过和具体缺口，不能把派发当成功。跨任务验证只传工作定位与目标，不塞完整历史答案；独立接续证据与本轮有背景的接续分别记录。不要强制日报或定时任务。
+摘要之后给“回顾这项工作 / 修正总结 / 开始新工作 / 稍后”。文字模式先展示同样的摘要、能力预期与具体动作，再用真实可用的原生选项；不能只泛问“想做什么”。选择后 choose_next 记录。点击“回顾这项工作”或旧版“继续这项工作”只授权读取来源、回顾进度与建议方向：在当前对话总结目标、已完成、当前进展、待解决事项，建议几个具体推进方向，然后等待用户下一条指令。卡片内历史 next 字段和旧待办不是执行授权；不修改业务文件、不启动测试或任务、不创建新任务、不为这次回顾额外保存 Markdown 或再次发布同一摘要卡。用户明确选择一个执行方向后才开始；用户明确要求新任务才创建。新建验证任务后必须 wait_threads 等待并读取结果，回到原任务更新已验证/未通过和具体缺口，不能把派发当成功。跨任务验证只传工作定位与目标，不塞完整历史答案；独立接续证据与本轮有背景的接续分别记录。不要强制日报或定时任务。
 
 ## 日常工作台与按需报告
 

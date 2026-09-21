@@ -107,17 +107,25 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByText('沿用已有协作方式。',{exact:true}).click();
  await frame.getByText('参考相关记忆和资料',{exact:true}).waitFor();
  assert.equal(await frame.getByText('从今天开始积累',{exact:true}).count(),0);
- // Pending import automatically refreshes; a usable summary appears before extraction completes.
+ // Progress keeps its own surface when the backend has a summary, even before extraction completes.
  const job={jobId:'a'.repeat(64),terminal:false,items:[{title:'接口设计',status:'running',written:true,verified:true}]};
  await render({...fixture,scope:{mode:'recent',days:30},onboarding:{...flow,phase:'import',import:job}});
  await frame.getByText('正在整理你的工作',{exact:true}).waitFor();
  const work={id:'a',title:'接口设计',project:'OpenViking',goal:'完成接口设计',state:'接口约定已核对',decisions:'沿用现有字段',openIssues:'需要补齐错误返回',next:'检查错误示例',coverage:'已核对原始对话；记忆整理中',sources:[{label:'设计原文',uri:'viking://user/default/resources/a.md'}]};
  await page.evaluate(value=>{window.fixture=value;}, {...fixture,scope:{mode:'recent',days:30},workspace:{works:[work]},onboarding:{...flow,phase:'ready',summaryReady:true,import:job}});
- await frame.getByText('上次停在这里',{exact:true}).waitFor({timeout:8000});
+ await frame.getByText('同步进度',{exact:true}).waitFor({timeout:8000});
+ assert.equal(await frame.getByText('上次停在这里',{exact:true}).count(),0);
  assert.ok(await page.evaluate(()=>requests.some(r=>r.name==='import_status')));
+ // A distinct publish result renders summary-only; no synchronous import list or status polling.
+ await render({...fixture,scope:{mode:'recent',days:30},workspace:{works:[work]},onboarding:{...flow,phase:'ready',summaryReady:true,import:job}});
+ await frame.getByText('上次停在这里',{exact:true}).waitFor();
+ assert.equal(await frame.locator('.review').count(),0);
+ await frame.getByRole('button',{name:'刷新',exact:true}).click();
+ assert.equal(await frame.locator('.review').count(),0);
  await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'.local/acceptance/screenshots/continuation-card.png'});
  await frame.getByRole('button',{name:'修正总结',exact:true}).click();await page.waitForFunction(()=>/修正/.test(messages.at(-1).content[0].text));
- await frame.getByRole('button',{name:'继续这项工作',exact:true}).click();await page.waitForFunction(()=>/在当前任务继续/.test(messages.at(-1).content[0].text));
+ await frame.getByRole('button',{name:'回顾这项工作',exact:true}).click();await page.waitForFunction(()=>/等待我的下一条指令/.test(messages.at(-1).content[0].text));
+ assert.match(await page.evaluate(()=>messages.at(-1).content[0].text),/不执行任务、不修改文件、不创建新任务/);
  // A malformed/legacy background result must terminate loading, not create a ghost card.
  await render({...fixture,view:undefined});
  await frame.getByText('未收到卡片内容，请重试。').waitFor();

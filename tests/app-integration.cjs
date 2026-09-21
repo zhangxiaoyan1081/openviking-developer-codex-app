@@ -20,16 +20,18 @@ const assert=require('node:assert/strict');
   server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end(req.url==='/app'?html:'<iframe sandbox="allow-scripts allow-same-origin" src="/app" style="width:760px;height:900px"></iframe>');});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   browser=await chromium.launch({channel:'chrome',headless:true});
-  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const page=await browser.newPage({viewport:{width:800,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.exposeFunction('mcpCall',(name,args)=>call(name,args));
   await page.addInitScript(()=>{if(top!==window)return;window.messages=[];window.addEventListener('message',async e=>{
-   const m=e.data;if(!m?.jsonrpc)return;const reply=result=>e.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');
+   const m=e.data;if(!m?.jsonrpc)return;
+   if(m.method==='ui/notifications/size-changed'&&m.params.height){for(const f of document.querySelectorAll('iframe'))if(f.contentWindow===e.source)f.style.height=m.params.height+'px';}
+   const reply=result=>e.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');
    if(m.method==='ui/initialize')reply({protocolVersion:m.params.protocolVersion,hostInfo:{name:'integration-test-host',version:'1'},hostCapabilities:{serverTools:{},message:{text:{}}},hostContext:{theme:'light',displayMode:'inline',availableDisplayModes:['inline']}});
-   if(m.method==='ui/notifications/initialized'){const r=await window.mcpCall('show_onboarding',{step:'connection'});e.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:r},'*');}
+   if(m.method==='ui/notifications/initialized'){const r=window.summaryResult&&e.source===document.querySelector('#summary')?.contentWindow?window.summaryResult:await window.mcpCall('show_onboarding',{step:'connection'});e.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:r},'*');}
    if(m.method==='tools/call')reply(await window.mcpCall(m.params.name,m.params.arguments));
    if(m.method==='ui/message'){window.messages.push(m.params);reply({});}
   });});
-  await page.goto('http://127.0.0.1:'+server.address().port);const frame=page.frameLocator('iframe');
+  await page.goto('http://127.0.0.1:'+server.address().port);const frame=page.frameLocator('iframe').first();
   const deliver=r=>page.evaluate(r=>document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:r},'*'),r);
   await frame.getByRole('button',{name:'连接',exact:true}).waitFor();steps.push('no-key connection card');
   // Fixture authentication is isolated and never sent to the commercial service.
@@ -76,11 +78,28 @@ const assert=require('node:assert/strict');
   await frame.getByText('已保存并核对 · 记忆已整理',{exact:true}).waitFor({timeout:10000});steps.push('progress polls actual persisted ledger');
   const state=(await call('get_state')).structuredContent;
   const work={id:'fixture',title:'测试工作',goal:'完成接口设计',state:'接口方案已核对',decisions:'沿用字段',openIssues:'待补错误示例',next:'检查错误示例',coverage:'虚构验收资料',sources:[{label:'测试来源',uri:'viking://user/default/resources/test.md'}]};
-  await deliver(await call('publish_work',{onboarding:true,scopeRevision:state.onboarding.scopeRevision,works:[work]}));
-  await frame.getByText('上次停在这里',{exact:true}).waitFor();
-  await frame.getByRole('button',{name:'继续这项工作',exact:true}).click();
-  await page.waitForFunction(()=>messages.some(m=>m.content[0].text.includes('接续「测试工作」')));
-  assert.equal((await call('get_state')).structuredContent.onboarding.choice,'continue');steps.push('publish -> visible summary -> continuation bridge');
+  const summary=await call('publish_work',{onboarding:true,scopeRevision:state.onboarding.scopeRevision,works:[work]});
+  // A host creates a second iframe for publish_work, rather than replacing the first tool's iframe.
+  await page.evaluate(result=>{window.summaryResult=result;const el=document.createElement('iframe');el.id='summary';el.src='/app';el.setAttribute('sandbox','allow-scripts allow-same-origin');el.style='width:760px;height:900px';document.body.append(el);},summary);
+  const summaryFrame=page.frameLocator('#summary');
+  await summaryFrame.getByText('上次停在这里',{exact:true}).waitFor();
+  assert.equal(await summaryFrame.locator('.review').count(),0);
+  await frame.getByRole('button',{name:'刷新',exact:true}).first().click();
+  await frame.getByText('同步已完成',{exact:true}).waitFor();
+  assert.equal(await frame.getByText('上次停在这里',{exact:true}).count(),0);
+  assert.equal(await frame.locator('[data-work]').count(),0);
+  await frame.getByRole('button',{name:'刷新',exact:true}).first().click();
+  assert.equal(await frame.getByText('上次停在这里',{exact:true}).count(),0);
+  steps.push('two real App iframes: finished sync stays separate, only one summary after refresh');
+  await fs.mkdir('.local/acceptance/screenshots',{recursive:true});
+  await frame.getByRole('button',{name:'刷新',exact:true}).first().isEnabled();
+  await page.screenshot({path:'.local/acceptance/screenshots/sync-and-summary-separated.png',fullPage:true});
+  await summaryFrame.getByRole('button',{name:'回顾这项工作',exact:true}).click();
+  await page.waitForFunction(()=>messages.some(m=>m.content[0].text.includes('回顾「测试工作」')));
+  const handoff=await page.evaluate(()=>messages.at(-1).content[0].text);
+  assert.match(handoff,/只总结目标、已完成、当前进展和待解决事项/);
+  assert.match(handoff,/等待我的下一条指令，不执行任务、不修改文件、不创建新任务/);
+  assert.equal((await call('get_state')).structuredContent.onboarding.choice,'continue');steps.push('summary -> read-only recap and suggested directions -> wait for user instruction');
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({test:'MCP + Python + App SDK',steps,cloudWrites:0,codexNativeUI:'not_tested'},null,2));
  }finally{if(browser)await browser.close();if(server)server.close();await client.close();await fs.rm(tmp,{recursive:true,force:true});}
