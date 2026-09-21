@@ -1,0 +1,21 @@
+{
+  "name": "ov-personal",
+  "version": "0.1.0",
+  "description": "连接火山 OpenViking，带入已有工作并继续。",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "OpenViking 个人版",
+    "shortDescription": "带上过去的工作，接着做。",
+    "longDescription": "Ov Personal adds a local Codex plugin scaffold.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "打开我的 OpenViking 工作台",
+      "同步最近一个月的工作"
+    ]
+  }
+}

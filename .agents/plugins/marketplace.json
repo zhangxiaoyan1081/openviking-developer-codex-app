@@ -1,0 +1,20 @@
+{
+  "name": "ov-personal-cloud",
+  "interface": {
+    "displayName": "OpenViking Personal"
+  },
+  "plugins": [
+    {
+      "name": "ov-personal",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ov-personal"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

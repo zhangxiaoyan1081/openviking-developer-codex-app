@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/volcengine/OpenViking.git",
+  "commit": "eb2acdb8b632c83392a10625f39d444f26c3cd09",
+  "pluginVersion": "0.9.3",
+  "installerPath": "examples/memory-plugin-shared/install.sh",
+  "installerSha256": "7852aee148569c2ac075690b65d0ebfb69fab55764f6164c25f3a147f13fd851",
+  "endpoint": "https://api.vikingdb.cn-beijing.volces.com/openviking"
+}
