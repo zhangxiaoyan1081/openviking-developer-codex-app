@@ -9,6 +9,7 @@ class PersonalTests(unittest.TestCase):
   self.patches=[patch.object(cloud,'CONFIG',self.root/'ovcli.conf'),patch.object(cloud,'ROOT',self.root/'state'),patch.dict('os.environ',{},clear=True)]
   for p in self.patches:p.start()
   cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'test-only'})
+  cloud.save('connection.json',{'verifiedAt':'2026-09-21T00:00:00Z'})
  def tearDown(self):
   for p in reversed(self.patches):p.stop()
   self.tmp.cleanup()

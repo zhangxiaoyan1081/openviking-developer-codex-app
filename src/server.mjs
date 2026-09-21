@@ -6,11 +6,14 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+const runtimeId=randomUUID();
+const startedAt=String(Date.now()/1000);
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const resource='ui://openviking/personal.html';
 const server=new McpServer({name:'openviking-codex-app',version:'0.2.0'});
 function backend(action,args={}){return new Promise((resolve,reject)=>{
- const child=execFile('python3',[path.join(root,'scripts/app_backend.py'),action],{timeout:60000,maxBuffer:4*1024*1024},(err,out)=>{
+ const child=execFile('python3',[path.join(root,'scripts/app_backend.py'),action],{env:{...process.env,OV_APP_RUNTIME_ID:runtimeId,OV_APP_STARTED_AT:startedAt},timeout:60000,maxBuffer:4*1024*1024},(err,out)=>{
   try{const result=JSON.parse(out);if(err||result.error)reject(new Error(result.error||'操作未完成。'));else resolve(result);}catch{reject(new Error('操作未完成，请重试。'));}
  });child.stdin.end(JSON.stringify(args));
 });}
@@ -27,9 +30,11 @@ function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}
  if(view)registerAppTool(server,name,config,handler);
  else server.registerTool(name,config,handler);
 }
-tool('show_onboarding','展示接入卡片，让用户选择近期工作、项目或描述范围。不要为 onboarding 打开浏览器。',{},'state',{view:'onboarding',readOnly:true});
+tool('show_onboarding','展示接入卡片：先确认或配置连接，验证成功后选择历史范围。不要为 onboarding 打开浏览器。',{},'state',{view:'onboarding',readOnly:true});
 tool('show_workspace','展示个人工作台：进展、目录、日报周报和知识洞察。',{},'state',{view:'workspace',readOnly:true});
 tool('get_state','读取用户选择、清单确认及工作台状态。',{},'state',{readOnly:true});
+tool('connect_existing','用户选择使用本机连接后验证并确认，不回显凭据。',{revision:z.string()},'connect_existing',{appOnly:true});
+tool('connect_key','验证用户在卡片输入的 Key，成功后更新官方配置；失败保留旧连接，不回显 Key。',{revision:z.string(),api_key:z.string().min(1).max(8192)},'connect_key',{appOnly:true});
 tool('select_scope','保存同步范围；不上传。用户点击后由 App 发消息请 Agent 准备清单。',{mode:z.enum(['recent','projects','description','skip']),days:z.union([z.literal(7),z.literal(30),z.literal(90)]).optional(),text:z.string().max(2000).optional()},'scope',{appOnly:true});
 tool('review_import','读取本地历史计划，展示完整待同步清单，用户确认之前不得上传。coverage 必须说明覆盖范围及缺口。',{path:z.string(),coverage:z.string().min(1)},'review',{view:'onboarding'});
 tool('confirm_import','用户点击确认后保存清单 hash；不自动上传。',{hash:z.string().regex(/^[a-f0-9]{64}$/)},'confirm',{appOnly:true});

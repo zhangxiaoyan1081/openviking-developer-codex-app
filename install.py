@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.request import urlopen
 ROOT=Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT/'plugins/openviking-codex-app/scripts'))
-import cloud
+import cloud,connection
 
 def commands(lock):
  return ['bash','<verified-official-installer>','--harness','codex','--dist','github','--source','remote','--lang','zh','--url',cloud.ENDPOINT,'--yes']
@@ -21,13 +21,12 @@ def main():
  if a.configure_stdin:
   data=json.load(sys.stdin);key=data.get('api_key','')
   if not isinstance(key,str) or not key.strip() or key.startswith('{{') or key in ('<API-Key>','mock') or any(c in key for c in '\r\n'):raise RuntimeError('请提供有效 API Key。')
-  old=json.loads(cloud.CONFIG.read_text()) if cloud.CONFIG.exists() else {}
+  old,revision=connection.snapshot()
   if old.get('api_key') and (old.get('api_key')!=key or old.get('url')!=cloud.ENDPOINT) and not a.replace_connection:raise RuntimeError('已有其他连接。确认切换后使用 --replace-connection。')
-  cloud.atomic(cloud.CONFIG,{**old,'url':cloud.ENDPOINT,'api_key':key})
- cloud.credentials()
- # Authentication/read availability must be checked before replacing official registration.
- cloud.request('/mcp',{'jsonrpc':'2.0','id':1,'method':'tools/list'})
+  connection.select(revision=revision,api_key=key,source='console')
  if not a.companion_only:
+  cloud.credentials()
+  if not a.configure_stdin:connection.verify(cloud.credentials())
   url='https://raw.githubusercontent.com/volcengine/OpenViking/'+lock['commit']+'/'+lock['installerPath']
   raw=urlopen(url,timeout=45).read()
   if hashlib.sha256(raw).hexdigest()!=lock['installerSha256']:raise RuntimeError('官方安装文件校验失败。')

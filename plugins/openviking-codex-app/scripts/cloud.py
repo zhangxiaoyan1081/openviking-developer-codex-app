@@ -19,13 +19,20 @@ def atomic(path,value):
  finally:
   if os.path.exists(name):os.unlink(name)
 
-def credentials():
+def check_environment():
  # Fail explicitly instead of silently differing from the official env resolver.
- overrides=[k for k in os.environ if k.startswith('OPENVIKING_') and k in ('OPENVIKING_URL','OPENVIKING_BASE_URL','OPENVIKING_MCP_URL','OPENVIKING_API_KEY','OPENVIKING_BEARER_TOKEN','OPENVIKING_CONFIG_FILE','OPENVIKING_ACCOUNT','OPENVIKING_USER','OPENVIKING_CREDENTIAL_SOURCE') and os.environ[k]]
+ overrides=[k for k in os.environ if k.startswith('OPENVIKING_') and k in ('OPENVIKING_URL','OPENVIKING_BASE_URL','OPENVIKING_MCP_URL','OPENVIKING_API_KEY','OPENVIKING_BEARER_TOKEN','OPENVIKING_CONFIG_FILE','OPENVIKING_ACCOUNT','OPENVIKING_USER','OPENVIKING_CREDENTIAL_SOURCE','OPENVIKING_CREDENTIALS_SOURCE','OPENVIKING_CLI_CONFIG_FILE','OPENVIKING_HOME','OPENVIKING_EXTRA_HEADERS') and os.environ[k]]
  if overrides:raise CloudError('检测到其他连接设置，请先在 Codex 中统一连接。')
+
+def credentials():
+ check_environment()
  try:c=json.loads(CONFIG.read_text())
  except FileNotFoundError:raise CloudError('请先在 Codex 中完成接入。') from None
  except (ValueError,OSError):raise CloudError('连接配置无法读取，请重新接入。') from None
+ return validate_credentials(c)
+
+def validate_credentials(c):
+ if not isinstance(c,dict):raise CloudError('连接配置无法读取，请重新接入。')
  if c.get('url','').rstrip('/')!=ENDPOINT:raise CloudError('请连接火山 OpenViking。')
  if not isinstance(c.get('api_key'),str) or not c['api_key'].strip() or any(x in c['api_key'] for x in '\r\n'):raise CloudError('请补充有效 API Key。')
  if c.get('user',c.get('user_id','default')) not in ('','default'):raise CloudError('当前版本仅支持 default 用户，请核对连接身份。')
@@ -41,13 +48,13 @@ def load(name,default=None):
 
 def save(name,value):atomic(folder()/name,value)
 
-def request(path,body=None):
+def request(path,body=None,*,config=None,timeout=45):
  if not path.startswith('/api/v1/') and path!='/mcp':raise CloudError('不支持的请求。')
- c=credentials();headers={'Authorization':'Bearer '+c['api_key'],'Accept':'application/json, text/event-stream','Content-Type':'application/json'}
+ c=credentials() if config is None else validate_credentials(config);headers={'Authorization':'Bearer '+c['api_key'],'Accept':'application/json, text/event-stream','Content-Type':'application/json'}
  for field,header in [('account','X-OpenViking-Account'),('user','X-OpenViking-User')]:
   if c.get(field):headers[header]=c[field]
  try:
-  with build_opener(NoRedirect()).open(Request(ENDPOINT+path,data=json.dumps(body).encode() if body is not None else None,headers=headers),timeout=45) as response:
+  with build_opener(NoRedirect()).open(Request(ENDPOINT+path,data=json.dumps(body).encode() if body is not None else None,headers=headers),timeout=timeout) as response:
    raw=response.read(16*1024*1024+1)
   if len(raw)>16*1024*1024:raise CloudError('内容较多，请缩小范围。')
   text=raw.decode();result=json.loads(text) if not text.lstrip().startswith(('event:','data:')) else [json.loads(line[5:]) for line in text.splitlines() if line.startswith('data:') and line[5:].strip()!='[DONE]'][-1]

@@ -1,17 +1,22 @@
-"""Private data adapter for MCP App. UI never receives credentials or transcripts."""
+"""MCP App adapter. Never return credentials or transcripts to the UI."""
 import json,sys,re
 from pathlib import Path
 from datetime import datetime,timezone
-import cloud,history,panel
+import cloud,history,panel,connection
 
 def state():
- try:
-  cloud.credentials()
-  return {'configured':True,'scope':cloud.load('scope.json'),'plan':cloud.load('review.json'),'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[])}
- except cloud.CloudError as e:return {'configured':False,'message':str(e),'reports':[],'workspace':{'works':[]}}
+ c=connection.status()
+ empty={'configured':c['canReuse'],'connection':c,'scope':None,'plan':None,'reports':[],'workspace':{'works':[]}}
+ if not c['ready']:return empty
+ return {**empty,'scope':cloud.load('scope.json'),'plan':cloud.load('review.json'),'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[])}
 
 def dispatch(action,value):
  if action=='state':return state()
+ if action=='connect_existing':
+  connection.select(revision=value['revision']);return state()
+ if action=='connect_key':
+  connection.select(revision=value['revision'],api_key=value['api_key']);return state()
+ connection.require_ready()
  if action=='scope':
   selected=panel.scope(value);cloud.save('scope.json',selected);cloud.save('review.json',None)
   return {'scope':selected}
@@ -44,6 +49,8 @@ def dispatch(action,value):
 
 if __name__=='__main__':
  try:print(json.dumps(dispatch(sys.argv[1],json.load(sys.stdin)),ensure_ascii=False))
- except (ValueError,KeyError,OSError,cloud.CloudError):
+ except cloud.CloudError as e:
+  print(json.dumps({'error':str(e)},ensure_ascii=False));sys.exit(1)
+ except (ValueError,KeyError,OSError):
   # Files and upstream errors can contain private data. Keep transport errors generic.
   print(json.dumps({'error':'操作未完成，请核对连接、范围或清单后重试。'},ensure_ascii=False));sys.exit(1)

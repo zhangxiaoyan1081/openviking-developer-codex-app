@@ -3,7 +3,7 @@ import argparse,hashlib,json,sys,fcntl
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
-import cloud
+import cloud,connection
 
 def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
 def result(value):return value.get('result',value)
@@ -26,6 +26,7 @@ def validate(plan):
  return plan
 
 def apply(plan,confirmation):
+ connection.require_ready()
  validate(plan);key=digest(plan)
  if confirmation!=key:raise ValueError('导入范围已变化，请重新确认。')
  root=cloud.folder();root.mkdir(parents=True,exist_ok=True,mode=0o700)

@@ -3,13 +3,13 @@ const { chromium }=require('playwright');
 const fs=require('node:fs'),http=require('node:http'),assert=require('node:assert/strict');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../plugins/openviking-codex-app/assets/app.html'),'utf8');
-const fixture={configured:true,view:'onboarding',plan:null,workspace:{works:[]},reports:[]};
+const fixture={configured:true,connection:{hasKey:true,canReuse:true,ready:true,revision:'test-revision'},view:'onboarding',plan:null,workspace:{works:[]},reports:[]};
 const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end(req.url==='/app'?html:`<body style="margin:30px;background:#f4f5f4"><iframe title="OpenViking" sandbox="allow-scripts allow-same-origin" src="/app" style="width:720px;height:570px;border:1px solid #ddd;border-radius:14px"></iframe></body>`);});
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({channel:'chrome',headless:true});try{
  const page=await browser.newPage({viewport:{width:820,height:660}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(({fixture})=>{
   if(window.top!==window)return;
-  window.protocol=[];window.requests=[];window.messages=[];window.fixture=fixture;window.rejectMessage=false;
+  window.protocol=[];window.requests=[];window.messages=[];window.fixture={...fixture,connection:{...fixture.connection,ready:false}};window.rejectMessage=false;window.rejectKey=false;
   window.addEventListener('message',event=>{
    const m=event.data;window.protocol.push(m);if(!m?.jsonrpc)return;
    const response=result=>event.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');
@@ -21,6 +21,11 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
     if(name==='select_scope')v={scope:a};
     if(name==='confirm_import')v={plan:{hash:a.hash,confirmed:true}};
     if(name==='get_state')v=window.fixture;
+    if(name==='connect_existing'){v={...window.fixture,connection:{...window.fixture.connection,ready:true}};window.fixture=v;}
+    if(name==='connect_key'){
+     if(window.rejectKey){response({isError:true,content:[{type:'text',text:'连接权限不足，请核对 API Key。'}]});return;}
+     v={...window.fixture,connection:{...window.fixture.connection,ready:false,restartRequired:true}};window.fixture=v;
+    }
     if(name==='list_directory')v={content:[{type:'text',text:'[dir] projects\n[file] report.md'}]};
     if(name==='read_file')v={content:[{type:'text',text:'# 来源正文\n已完成接口核对。\n<script>window.hacked=true</script>'}]};
     response({content:[],structuredContent:v});
@@ -30,11 +35,15 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
   });
  },{fixture});
  await page.goto('http://127.0.0.1:'+server.address().port);const frame=page.frameLocator('iframe');
+ await frame.getByRole('button',{name:'使用当前连接',exact:true}).waitFor();
+ assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
+ await page.screenshot({path:'docs/screenshots/connection-card.png'});
+ await frame.getByRole('button',{name:'使用当前连接',exact:true}).click();
  try{await frame.getByText('带上过去的工作',{exact:true}).waitFor({timeout:8000});}catch(e){console.log('errors',errors,'protocol',await page.evaluate(()=>protocol),'frame',await page.frames()[1].locator('body').innerText());throw e;}
  await page.screenshot({path:'docs/screenshots/onboarding-card.png'});
  await frame.getByRole('button',{name:'近期全部工作'}).click();await frame.locator('#days').selectOption('90');await frame.getByRole('button',{name:'继续',exact:true}).click();
  await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();
- assert.equal(await page.evaluate(()=>requests[0].arguments.days),90);assert.equal(await page.evaluate(()=>messages.length),1);assert.match(await page.evaluate(()=>messages[0].content[0].text),/先不要上传/);
+ assert.equal(await page.evaluate(()=>requests.find(x=>x.name==='select_scope').arguments.days),90);assert.equal(await page.evaluate(()=>messages.length),1);assert.match(await page.evaluate(()=>messages[0].content[0].text),/先不要上传/);
  const render=async value=>page.evaluate(value=>{window.fixture=value;document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:value}},'*');},value);
  await render({...fixture,plan:{hash:'a'.repeat(64),coverage:'最近三个月 · 2 个项目',confirmed:false,items:[{title:'接口设计',project:'OpenViking',messages:12},{title:'网站改版',project:'Website',reuse:true}]}});
  await frame.getByRole('button',{name:'确认同步',exact:true}).click();await frame.getByText('已交给 Codex，请在对话中继续。').waitFor();assert.equal(await page.evaluate(()=>requests.at(-1).name),'confirm_import');
@@ -45,6 +54,24 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'目录',exact:true}).click();await frame.getByRole('button',{name:'▸ projects'}).click();await frame.getByRole('button',{name:'· report.md'}).click();await frame.locator('#preview pre').waitFor();await page.screenshot({path:'docs/screenshots/directory-card.png'});
  await page.evaluate(()=>window.rejectMessage=true);await render(fixture);await frame.getByRole('button',{name:'从现在开始 →'}).click();await frame.getByText(/选择已保留/).waitFor();
  await page.setViewportSize({width:420,height:700});await page.locator('iframe').evaluate(el=>{el.style.width='360px';el.style.height='610px';});await render(fixture);await page.screenshot({path:'docs/screenshots/onboarding-mobile.png'});assert.equal(await page.frames()[1].evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+ // Missing Key asks for credentials; errors preserve the form and do not enter import.
+ await render({...fixture,configured:false,connection:{hasKey:false,canReuse:false,ready:false,revision:'missing'}});
+ await frame.getByLabel('API Key',{exact:true}).fill('invalid-test-key');
+ assert.equal(await frame.getByLabel('API Key',{exact:true}).getAttribute('type'),'password');
+ await page.evaluate(()=>window.rejectKey=true);
+ await frame.getByRole('button',{name:'连接',exact:true}).click();
+ await frame.getByText('连接权限不足，请核对 API Key。',{exact:true}).waitFor();
+ assert.equal(await frame.getByLabel('API Key',{exact:true}).inputValue(),'');
+ assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
+ assert.ok(!(await page.evaluate(()=>messages)).some(m=>JSON.stringify(m).includes('invalid-test-key')));
+ // Existing connection offers replacement; changing it requires a fresh runtime.
+ await render({...fixture,connection:{...fixture.connection,ready:false}});
+ await frame.getByRole('button',{name:'更换 API Key',exact:true}).click();
+ await page.screenshot({path:'docs/screenshots/api-key-card.png'});
+ await frame.getByLabel('API Key',{exact:true}).fill('valid-test-key');await page.evaluate(()=>window.rejectKey=false);
+ await frame.getByRole('button',{name:'更换并连接',exact:true}).click();
+ await frame.getByText('连接已更新',{exact:true}).waitFor();
+ assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
  // A malformed/legacy background result must terminate loading, not create a ghost card.
  await render({...fixture,view:undefined});
  await frame.getByText('未收到卡片内容，请重试。').waitFor();
@@ -59,5 +86,5 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await page.evaluate(()=>{window.suppressResult=true;document.querySelector('iframe').contentWindow.location.reload();});
  await frame.getByText('加载超时，请重试。').waitFor({timeout:18000});
  await render(fixture);await frame.getByText('带上过去的工作',{exact:true}).waitFor();
- assert.deepEqual(errors,[]);console.log('App bridge: scope, confirmation, report request, directory preview, XSS escaping, rejected message, mobile, missing result, reload and timeout recovery passed.');
+ assert.deepEqual(errors,[]);console.log('App bridge: scope, confirmation, report request, directory preview, XSS escaping, rejected message, mobile, missing result, reload and timeout recovery, existing connection consent, key input, auth failure and key switch passed.');
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

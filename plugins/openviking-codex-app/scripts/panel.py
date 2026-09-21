@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs
 from urllib.request import urlopen
-import cloud
+import cloud,connection
 ASSET=Path(__file__).resolve().parents[1]/'assets/index.html'
 
 def scope(value):
@@ -32,8 +32,10 @@ class Handler(BaseHTTPRequestHandler):
    elif u.path=='/api/state':
     from app_backend import state
     self.send(state())
-   elif u.path=='/api/list':self.send(cloud.rpc('list',{'uri':cloud.personal_uri(q.get('uri',['viking://user/default/resources'])[0])}))
+   elif u.path=='/api/list':
+    connection.require_ready();self.send(cloud.rpc('list',{'uri':cloud.personal_uri(q.get('uri',['viking://user/default/resources'])[0])}))
    elif u.path=='/api/read':
+    connection.require_ready()
     offset=int(q.get('offset',['0'])[0])
     if offset<0:raise ValueError('读取位置无效。')
     self.send(cloud.rpc('read',{'uris':[cloud.personal_uri(q.get('uri',[''])[0])],'offset':offset,'limit':200}))
@@ -45,17 +47,18 @@ class Handler(BaseHTTPRequestHandler):
    if self.path!='/api/scope':raise ValueError('不支持的操作。')
    size=int(self.headers.get('Content-Length','0'))
    if not 0<size<16000:raise ValueError('内容过长。')
+   connection.require_ready()
    value=scope(json.loads(self.rfile.read(size)));cloud.save('scope.json',value);self.send(value)
   except (ValueError,cloud.CloudError) as e:self.send({'error':str(e)},400)
 
 def serve():
  server=ThreadingHTTPServer(('127.0.0.1',0),Handler);server.token=secrets.token_hex(24)
- cloud.atomic(cloud.ROOT/'panel-v2.json',{'url':'http://127.0.0.1:'+str(server.server_port)+'/','instance':server.token})
+ cloud.atomic(cloud.ROOT/'panel-v3.json',{'url':'http://127.0.0.1:'+str(server.server_port)+'/','instance':server.token})
  server.serve_forever()
 
 def start():
  import time
- path=cloud.ROOT/'panel-v2.json'
+ path=cloud.ROOT/'panel-v3.json'
  try:
   state=json.loads(path.read_text());url=state['url'];u=urlsplit(url)
   if u.hostname=='127.0.0.1' and u.scheme=='http' and u.path=='/':

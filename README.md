@@ -6,8 +6,8 @@
 
 ## 体验路径
 
-1. 用户粘贴控制台生成的 [接入指令](docs/console-connect.md)。Codex 配置已有 key、验证连接；宿主需要信任 Hook 或新任务加载时按实际提示完成。
-2. 对话中显示接入卡片：近期全部工作、选择项目、描述范围、从现在开始。
+1. 用户粘贴控制台生成的 [接入指令](docs/console-connect.md)。指令含 Key 时，Codex 验证后继续；没有提供 Key 时，先显示连接卡片，选择“使用当前连接 / 更换 API Key”或填写新 Key；宿主需要信任 Hook 或新任务加载时按实际提示完成。
+2. 连接验证成功后，对话中显示范围卡片：近期全部工作、选择项目、描述范围、从现在开始。
 3. 点击选择交回当前 Codex。Agent 准备可访问历史清单，再用卡片确认，随后执行导入与 Working Memory 汇总。
 4. 工作台卡片显示工作进展、目录、报告与洞察。可直接接续工作或按需生成报告；需要长时间查看时在侧边栏打开工作台。
 
@@ -15,7 +15,7 @@
 
 ## 试用
 
-已安装上一版且已有有效火山连接，在此仓库目录执行：
+已安装上一版，在此仓库目录执行（更新交互插件无需先配置 Key）：
 
 ```bash
 python3 install.py --companion-only
@@ -23,7 +23,7 @@ python3 install.py --companion-only
 
 它只更新本仓库插件，不重新安装官方记忆插件。已有旧名称安装时，先安装 `openviking-codex-app`，成功后卸载 `ov-personal`；凭据和本地同步、报告数据继续复用。安装后**新开一个 Codex 任务**并发送：
 
-> 使用 openviking-codex-app，调用 show_onboarding，展示 OpenViking 接入卡片。复用已有连接，不打开浏览器。
+> 使用 openviking-codex-app，调用 show_onboarding，展示 OpenViking 接入卡片。先展示连接确认，不打开浏览器。
 
 日常使用可以说：
 
@@ -43,16 +43,24 @@ python3 install.py --companion-only
 python3 plugins/openviking-codex-app/scripts/panel.py start
 ```
 
+## 连接行为
+
+- 指令带有 Key：验证鉴权和个人目录可读后继续，不重复填写。
+- 只有本机旧配置：先点击“使用当前连接”或“更换 API Key”。已有配置本身不算本次连接确认。
+- 没有 Key：卡片输入并连接。验证失败保留旧配置；成功后以 0600 权限原子保存。
+- Key 更换会更新此设备的官方 OpenViking 连接，卡片要求新开 Codex 任务后再导入，避免当前官方代理仍用旧凭据。新任务应核对官方连接；宿主没有重载时重启 Codex。
+- 连接凭据变化会隔离旧的选择、清单、工作台和报告；并发修改时旧卡片不能覆盖更新后的配置。
+
 ## 结构与边界
 
 - `src/server.mjs`：标准 MCP Apps 工具和 HTML 资源，stdio 运行；凭据留在 Python 云端客户端中。
 - `src/app.mjs`、`src/ui.mjs`：对话卡片、目录与报告。点击选择保存本地状态，发送消息由当前 Agent 接续，不伪造执行完成。
-- `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离。
+- `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离；只有连接明确确认后才能导入。
 - `scripts/history.py`：已授权计划的分批导入、commit、去重和 Working Memory 读取。请求结果未知时不自动重放。
 - `scripts/panel.py`：仅本机的日常工作台；不是 onboarding 入口。
 - `skills/openviking-codex-app/SKILL.md`：安装、确认、导入、跨会话接续和证据驱动报告。
 
-上述 scripts/skills 短路径均相对 `plugins/openviking-codex-app/`。Key 仅进入官方配置，不进入卡片、导入清单或报告。本地状态位于 `~/.openviking/personal/`，按连接隔离；不扫描宿主私有数据库、不采集 Computer History、不自动创建定时任务。
+上述 scripts/skills 短路径均相对 `plugins/openviking-codex-app/`。已保存的 Key 不回显到卡片。新输入通过宿主的 App 工具和子进程 stdin 传给配置器，不放在命令参数或工具返回结果中；宿主可能记录工具输入，不能承诺对宿主日志隐身。Key 不进入导入清单或报告。本地状态位于 `~/.openviking/personal/`，按连接隔离；不扫描宿主私有数据库、不采集 Computer History、不自动创建定时任务。
 
 官方依赖由 `upstream.lock.json` 固定 GitHub commit `eb2acdb8b632c83392a10625f39d444f26c3cd09`，版本 0.9.3；校验安装脚本 SHA256 后以同一 commit 安装。固定服务地址为 `https://api.vikingdb.cn-beijing.volces.com/openviking`，不安装开源服务端。首次完整安装会重新注册固定版本的官方 marketplace；`--companion-only` 不做该步骤。连接身份不同必须明确切换，不能静默覆盖。
 
@@ -80,6 +88,8 @@ node tests/check_ui.cjs
 
 以下为模拟宿主截图，不是 Codex 原生宿主验收截图。
 
-![接入卡片](docs/screenshots/onboarding-card.png)
+![连接确认](docs/screenshots/connection-card.png)
+![输入 Key](docs/screenshots/api-key-card.png)
+![范围选择](docs/screenshots/onboarding-card.png)
 ![报告](docs/screenshots/reports-card.png)
 ![目录](docs/screenshots/directory-card.png)

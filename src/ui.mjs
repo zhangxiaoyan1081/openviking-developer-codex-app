@@ -6,7 +6,7 @@ export function entries(result,uri){
  return {text,items:text.split('\n').map(x=>x.match(/^\[(dir|file)\] (.+)$/)).filter(Boolean).map(x=>({dir:x[1]==='dir',name:x[2].replace(/\/$/,''),uri:uri+'/'+x[2].replace(/\/$/,'')}))};
 }
 export function createUI({call,send,expand,panel=false}){
- let state={},page='progress',scopeMode=null,uri=ROOTS[0],revision=0,busy=false;
+ let state={},page='progress',scopeMode=null,keyEntry=false,uri=ROOTS[0],revision=0,busy=false;
  const $=s=>document.querySelector(s),main=$('#main'),notice=$('#notice');
  const message=text=>{notice.textContent=text;};
  async function run(fn){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);message('');try{await fn();}catch(e){message(e.message||'操作未完成，请重试。');}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
@@ -16,15 +16,25 @@ export function createUI({call,send,expand,panel=false}){
   catch{message('选择已保留。当前无法发送，请在对话中说“继续 OpenViking”。');}
  }
  function nav(){return `<nav class="tabs" aria-label="工作台">${[['progress','工作进展'],['files','目录'],['reports','报告与洞察']].map(([id,label])=>`<button data-page="${id}" class="${page===id?'active':''}">${label}</button>`).join('')}</nav>`;}
+ function connect(){
+  revision++;$('#header-actions').innerHTML=panel?'':'<button class="quiet" data-action="refresh">刷新</button>';
+  const c=state.connection||{};
+  if(panel){main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">请在 Codex 对话中完成连接。</p>';return;}
+  if(c.blocked){main.innerHTML=`<h1>连接 OpenViking</h1><p class="muted">${esc(c.message||'请在 Codex 中检查连接配置。')}</p>`;return;}
+  if(c.restartRequired){main.innerHTML='<h1>连接已更新</h1><p>新开一个 Codex 任务，发送“继续 OpenViking 接入”。</p>';return;}
+  if(c.canReuse&&!keyEntry){main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">检测到此设备已保存的火山连接。</p><div class="actions"><button class="primary" data-action="connect-existing">使用当前连接</button><button data-action="change-key">更换 API Key</button></div>';return;}
+  main.innerHTML=`<h1>${c.hasKey?'更换 API Key':'连接 OpenViking'}</h1><p class="muted">${c.hasKey?'验证成功后，将更新此设备的 OpenViking 连接。':'填入火山控制台中的 API Key。'}</p><form id="connect-form"><label for="api-key">API Key</label><input id="api-key" type="password" autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="粘贴 API Key" required><div class="actions">${c.canReuse?'<button type="button" data-action="cancel-key">返回</button>':''}<button type="button" class="primary" data-action="connect-key">${c.hasKey?'更换并连接':'连接'}</button></div></form>`;
+ }
  function onboarding(){
-  revision++;$('#header-actions').innerHTML='<span class="pill">开始使用</span>';
-  if(!state.configured){main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">将控制台的接入指令发给 Codex。</p>';return;}
+  if(!state.connection?.ready||keyEntry){connect();return;}
+  revision++;$('#header-actions').innerHTML='<span class="pill">连接已验证</span><button class="quiet" data-action="change-key">更换连接</button>';
   if(state.plan){const p=state.plan;main.innerHTML=`<h1>${p.confirmed?'已确认同步范围':'带入这些工作？'}</h1><p class="muted">${esc(p.coverage)}</p><div class="review">${p.items.map(x=>`<article><strong>${esc(x.title)}</strong><div class="muted">${esc(x.project||'未归入项目')} · ${x.reuse?'复用已有记录':`${x.messages} 条消息`}</div></article>`).join('')}</div><div class="row spaced"><span class="muted">共 ${p.items.length} 个会话</span><div class="row"><button data-action="reset">调整范围</button><button class="primary" data-action="confirm">${p.confirmed?'继续同步':'确认同步'}</button></div></div>`;return;}
   if(scopeMode){main.innerHTML=`<h1>${scopeMode==='recent'?'带入近期工作':scopeMode==='projects'?'带入哪些项目？':'想带入哪些工作？'}</h1><div class="field">${scopeMode==='recent'?'<label for="days">时间范围</label><select id="days"><option value="7">最近 7 天</option><option value="30" selected>最近 1 个月</option><option value="90">最近 3 个月</option></select>':`<label for="scope-text">${scopeMode==='projects'?'项目名称，可填写多个':'同步范围'}</label><textarea id="scope-text" placeholder="${scopeMode==='projects'?'例如：OpenViking、网站改版':'例如：近三个月的产品调研，不含客户支持'}"></textarea>`}</div><div class="actions"><button data-action="back">返回</button><button data-action="select" class="primary">继续</button></div>`;return;}
   main.innerHTML='<h1>带上过去的工作</h1><p class="muted">选择范围，Codex 会先为你整理清单。</p><div class="choices"><button class="choice" data-scope="recent"><strong>近期全部工作</strong><span>7 天、1 个月、3 个月</span></button><button class="choice" data-scope="projects"><strong>选择项目</strong><span>一个或多个项目</span></button><button class="choice" data-scope="description"><strong>描述范围</strong><span>用自己的话说</span></button></div><button class="quiet" data-action="skip">从现在开始 →</button>';
  }
  function sources(items){return items.map(s=>`<button class="source" data-file="${esc(s.uri)}">↗ ${esc(s.label)}</button>`).join('');}
  function workspace(){
+  if(!state.connection?.ready||keyEntry){connect();return;}
   revision++;$('#header-actions').innerHTML=`<button class="quiet" data-action="refresh" aria-label="刷新">刷新</button>${panel?'':'<button class="quiet" data-action="expand">展开</button><button class="quiet" data-action="panel">侧边栏 ↗</button>'}`;
   if(page==='files'){directory();return;}
   if(page==='reports'){reports();return;}
@@ -46,6 +56,7 @@ export function createUI({call,send,expand,panel=false}){
   try{const r=await call('read_file',{uri:target,offset});if(generation!==revision)return;const text=(r.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('\n');$('#preview').innerHTML=`<h2>${esc(target.split('/').pop())}</h2><pre>${esc(text||'没有更多内容。')}</pre>${text?`<button data-more="${esc(target)}" data-offset="${offset+200}">继续读取</button>`:''}`;}catch(e){if(generation===revision)$('#preview').textContent=e.message;}
  }
  async function refresh(view){const result=await call('get_state',{});state={...state,...result,view:view||state.view};if(state.view==='onboarding')onboarding();else workspace();}
+ document.addEventListener('submit',event=>{if(event.target.id==='connect-form'){event.preventDefault();document.querySelector('[data-action="connect-key"]')?.click();}});
  document.addEventListener('change',event=>{if(event.target.id==='kind'&&$('#period'))$('#period').value=event.target.value==='daily'?'今天':'最近 7 天';});
  document.addEventListener('click',event=>{
   const b=event.target.closest('button');if(!b||b.disabled)return;const d=b.dataset;
@@ -57,6 +68,16 @@ export function createUI({call,send,expand,panel=false}){
   if(d.report!==undefined){const r=state.reports[Number(d.report)];main.innerHTML=nav()+`<h1>${esc(r.title)}</h1><p class="muted">${esc(r.period)} · ${esc(r.coverage)}</p><article class="report-body">${esc(r.body)}</article><hr>${sources(r.sources)}`;return;}
   run(async()=>{
    if(d.work!==undefined){const w=state.workspace.works[Number(d.work)];await notify(`使用 openviking-codex-app 接续「${w.title}」。下一步：${w.next}。先读取这些来源核对最新状态：${w.sources.map(x=>x.uri).join('、')}`);}
+   if(d.action==='change-key'){keyEntry=true;connect();return;}
+   if(d.action==='cancel-key'){keyEntry=false;if(state.view==='onboarding')onboarding();else workspace();return;}
+   if(d.action==='connect-existing'||d.action==='connect-key'){
+    const args={revision:state.connection.revision};
+    if(d.action==='connect-key'){args.api_key=$('#api-key').value.trim();if(!args.api_key)throw Error('请填写 API Key。');$('#api-key').value='';}
+    message('正在验证连接…');
+    const result=await call(d.action==='connect-key'?'connect_key':'connect_existing',args);
+    state={...state,...result};keyEntry=false;message('');if(state.view==='onboarding')onboarding();else workspace();
+    return;
+   }
    if(d.action==='reload'){location.reload();return;}
    if(d.action==='back'){scopeMode=null;onboarding();}
    if(d.action==='reset'){state.plan=null;scopeMode=null;onboarding();}
