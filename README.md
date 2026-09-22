@@ -1,22 +1,20 @@
-# OpenViking Developer Codex App
+# OpenViking Codex App
 
-在 Codex 对话中接入火山 OpenViking，带入已有工作，再接着做。
+让 Codex 记住已有背景，带上过去的工作，并在需要时回顾进展、查找资料、整理报告。
 
-插件名：`openviking-codex-app`。个人版交互插件；自动记忆复用官方 `openviking-memory`。服务端仅连接火山商业化实例。本版不识别 key 对应的版本、不提供企业分流。
+连接你的**火山 OpenViking 个人空间**，在对话中完成接入，日常在 Codex 右侧打开工作台。
 
-## 体验路径
+- **带入已有工作**：按时间、项目或描述选择历史，确认清单后导入。
+- **接着上次的进度**：查看云端会话的最新工作概览，回顾决定、待办和下一步。
+- **随时查看与整理**：浏览目录和资料，让 Codex 按需生成日报、周报或知识洞察。
 
-1. 用户粘贴控制台生成的 [接入指令](docs/console-connect.md)。指令含 Key 时，Codex 验证后继续；没有提供 Key 时，先显示连接卡片，选择“使用当前连接 / 更换 API Key”或填写新 Key；宿主需要信任 Hook 或新任务加载时按实际提示完成。
-2. 连接验证后，核对长期协作方式：已有同等授权也展示“沿用这个方式 / 调整”，等待选择；新规则展示行为与作用范围，用户采用后保存并读回。保留原有 AGENTS.md 内容，变动时重新核对。
-3. 范围卡片支持近期全部工作、项目、描述范围、从现在开始。不导入也会展示协作方式、实际能力和开始工作/保存资料/稍后入口。
-4. 导入分支先确认清单，再写入并读回、短暂查询抽取状态。可用 Working Memory 或已核对原文形成接续摘要，无需等待所有抽取结束。
-5. 摘要展示目标、上次进展、决定、待办、下一步和来源；与同步清单分开展示，旧同步卡片不会随轮询变成第二张摘要。点击“回顾这项工作”只读取来源、总结进度并建议推进方向，等待用户指令后才执行；不自动处理待办或额外生成文件。新任务接续需要用户明确选择并回收验证结果。日常工作台直接在右侧打开，用于查看目录、工作进展和报告。
+> 本页截图使用示例数据，由当前插件界面渲染。接入卡片截图来自模拟 MCP Apps 宿主，不代表 Codex 原生宿主验收；实际展示方式随宿主版本变化。
 
-接入不自动打开浏览器。卡片使用标准 MCP Apps 的 `ui://` 资源、`callServerTool` 和 `sendMessage`。卡片是否展示、消息能否发回、展开方式由宿主支持决定。CLI 或不支持卡片的宿主使用原生选项/文本接续同一流程。
+## 开始使用
 
-## 分享与分发
+准备好火山 OpenViking 个人版的 API Key，以及 Python 3.10+、Node.js 22+、Git、Codex CLI。当前已完成 macOS 安装验证，其他系统尚未完成真实安装验收。
 
-仓库已公开，无需 GitHub 授权即可下载。复制 [安装指令](docs/install.md) 给 Codex，或在终端执行：
+**最方便的方式：**把 [安装指令](docs/install.md) 复制给 Codex，让它完成安装。也可以自己在终端执行：
 
 ```bash
 git clone https://github.com/zhangxiaoyan1081/openviking-developer-codex-app.git
@@ -24,109 +22,155 @@ cd openviking-developer-codex-app
 python3 install.py --companion-only
 ```
 
-安装后新开任务，发送“使用 openviking-codex-app 接入 OpenViking”，按引导配置自己的 Key、确认协作方式。
+安装后**新开一个 Codex 任务**，发送：
 
-团队使用见 [团队试用说明](docs/team-quickstart.md)；工作区发布、公共目录和左侧入口见 [分发说明](docs/distribution.md)。[远程 HTTPS MCP 改造方案](docs/remote-mcp.md) 描述后续服务化路径，远程服务尚未部署。
+```text
+使用 openviking-codex-app 接入 OpenViking。
+```
 
-## 试用
+这个命令安装交互插件；后续接入流程会检查并按需安装官方 `openviking-memory`，分别验证连接与记忆能力。分发包包含打包后的界面，使用者无需执行 `npm install`。
 
-已安装上一版，在此仓库目录执行（更新交互插件无需先配置 Key）：
+如果你已从火山控制台复制了含 API Key 的接入指令，直接交给 Codex 即可，无需再次填写 Key。控制台集成见 [接入指令模板](docs/console-connect.md)。
+
+## 第一次接入会经历什么
+
+### 1. 连接你的 OpenViking
+
+没有提供 API Key 时，先输入 Key；设备上已有连接时，选择使用当前连接或更换 Key。Codex 验证连接后继续，必要时引导你批准官方记忆插件的 Hook 或重新打开任务。
+
+![已有连接时，选择使用当前连接或更换 API Key](docs/screenshots/connection-card.png)
+
+### 2. 确认今后如何协作
+
+确认 Codex 何时参考记忆、保存哪些重要进展与交付物，以及如何说明信息的使用。你可以采用建议，也可以调整。
+
+已有协作规则时，也会让你确认沿用或调整。新增规则在你确认后写入相应的 `AGENTS.md`，保留原有内容；沿用已有规则无需重写。
+
+![确认长期协作方式及规则生效范围](docs/screenshots/collaboration-card.png)
+
+### 3. 选择是否带入过去的工作
+
+可以选择**最近 7 天、1 个月、3 个月**的工作，选择一个或多个项目，或者用自己的话描述范围，例如：
+
+> 带入最近一个月与个人网站改版有关的讨论和交付物。
+
+Codex 先整理可读取的历史清单，说明覆盖范围与缺口，等你确认后再同步。也可以选择**从现在开始**，无需导入历史。
+
+![按时间、项目或自然语言选择历史范围，也可以从现在开始](docs/screenshots/onboarding-card.png)
+
+### 4. 查看同步进度，回顾已有工作
+
+确认导入后，可以查看写入、读回核对与记忆整理的状态。云端抽取可能需要时间；已有可读取的概览或核对过的原始对话时，Codex 可以先帮你恢复工作背景。
+
+![同步进度：已保存的历史与云端记忆整理状态](docs/screenshots/import-progress-card.png)
+
+随后查看工作摘要：做到哪里、有哪些决定、还缺什么、接下来可以怎么推进。点击**回顾这项工作**只总结进展并建议方向，等待你的下一条指令再执行任务。
+
+![回顾工作：当前进展、已确定事项、待处理问题与建议下一步](docs/screenshots/continuation-card.png)
+
+选择不导入历史，也会说明当前协作状态，以及如何开始新工作或保存一份资料。接入中断后，可以在新任务中说：
+
+```text
+使用 openviking-codex-app 继续接入 OpenViking，从已保存的步骤继续。
+```
+
+支持 MCP Apps 的 Codex 桌面宿主可使用交互卡片；CLI 或不支持卡片的宿主通过选项和文字完成相同步骤。
+
+## 日常工作台
+
+在 Codex 中发送：
+
+```text
+打开我的 OpenViking 工作台。
+```
+
+工作台直接在 **Codex 右侧面板**打开，按「目录 → 工作进展 → 报告与洞察」排列。
+
+### 目录：浏览你的云端资料
+
+从 `viking://` 根目录浏览当前 Key 有权访问的目录，保留 `user/default/...` 等实际层级，优先展示 `user`，随后是 `resources`。
+
+- 展开目录树，选择文件即可预览。
+- 选择文件夹，查看 **L0 摘要**与 **L1 概览**。
+- 在预览、源码和路径之间切换，支持 Markdown、JSON、文本及接口返回的图片等内容。
+
+目录交互参考 OpenViking Web Studio，不包含 VikingBot 操作。
+
+![目录工作台：完整目录树，以及 L0 摘要、L1 概览和预览、源码、路径切换](docs/screenshots/workspace-sidebar.png)
+
+### 工作进展：看看每项工作做到哪里
+
+基于 OpenViking 当前用户 `sessions/` 下的所有 Session，读取各会话**最新 archive 的 L1 概览**，展示云端已有的工作进展，不局限于这次接入导入的历史。
+
+每张横向卡片包含 **Session Title、Current State、上次抽取记忆时间**；时间取自最新归档 L1 文件的更新时间。会话多时可搜索和分页，点击「展开概览」查看全文。尚无归档或读取失败的会话会保留状态提示。
+
+![工作进展列表：搜索会话、展开完整概览、复制接续指令](docs/screenshots/workspace-progress.png)
+
+想继续某项工作，点击**复制接续指令**并粘贴到 Codex。Codex 会读取对应概览，先总结进展、建议推进方向，等你决定下一步。
+
+### 报告与洞察：按需要整理工作成果
+
+在对话中告诉 Codex 你想看什么，例如：
+
+```text
+根据最近 7 天的工作生成周报，列出已完成、进行中、下一步和来源。
+```
+
+```text
+回顾最近一个月的产品调研，整理反复出现的问题和可复用的经验，注明来源。
+```
+
+Codex 读取实际资料，说明时间范围与缺口，生成日报、周报、工作汇总或知识洞察。报告正文保存到个人 OpenViking 资源目录并读回核对后，可在工作台查看报告内容和来源。
+
+![报告详情：时间范围、覆盖的工作、总结正文与来源入口](docs/screenshots/workspace-reports.png)
+
+报告按需生成；不会默认开启定时任务。侧边工作台用于浏览，生成新报告仍在对话中发出请求。
+
+## 更新与分享
+
+已安装的用户，在仓库目录执行：
 
 ```bash
+git pull --ff-only
 python3 install.py --companion-only
 ```
 
-它只更新本仓库插件，不重新安装官方记忆插件。已有旧名称安装时，先安装 `openviking-codex-app`，成功后卸载 `ov-personal`；凭据和本地同步、报告数据继续复用。安装后**新开一个 Codex 任务**并发送：
+随后新开 Codex 任务加载新版。更新交互插件不会重新安装官方记忆插件；已有任务可能继续运行原版本。
 
-> 使用 openviking-codex-app 继续接入 OpenViking，从已保存的步骤继续。
+仓库已公开，可以直接把**本 README 或 [安装指令](docs/install.md)** 分享给同事。每个人配置自己的火山 API Key。更多说明见 [团队试用](docs/team-quickstart.md) 和 [分发说明](docs/distribution.md)。
 
-日常使用可以说：
+## 当前支持范围
 
-> 打开我的 OpenViking 工作台。
-
-> 根据最近 7 天的工作生成周报，列出来源。
-
-> 在侧边栏打开 OpenViking 工作台。
-
-“打开我的 OpenViking 工作台”直接打开右侧面板，不新增工作台卡片。侧边栏按“目录 → 工作进展 → 报告与洞察”排列；工作进展读取当前用户全部 Session 的最新 archive L1，以横向卡片展示标题、当前状态和 L1 更新时间，可搜索、分页和展开全文；生成报告与接续工作通过对话中的卡片或直接提问完成。它不会在用户没有发出请求时后台启动另一个 Agent。
-
-首次接入使用 [控制台指令](docs/console-connect.md)。公开仓库可通过上面的 `git clone` 获取，无需安装 GitHub CLI。需要 Python 3.10+、Node.js 22+、Git、Codex CLI。分发包已包含打包 JS，用户无需 npm install。
-
-仅打开日常工作台：
-
-```bash
-python3 plugins/openviking-codex-app/scripts/panel.py start
-```
-
-## 连接行为
-
-- 指令带有 Key：验证鉴权和个人目录可读后继续，不重复填写。
-- 只有本机旧配置：先点击“使用当前连接”或“更换 API Key”。已有配置本身不算本次连接确认。
-- 没有 Key：卡片输入并连接。验证失败保留旧配置；成功后以 0600 权限原子保存。
-- Key 更换会更新此设备的官方 OpenViking 连接，卡片要求新开 Codex 任务后再导入，避免当前官方代理仍用旧凭据。新任务应核对官方连接；宿主没有重载时重启 Codex。
-- 连接凭据变化会隔离旧的选择、清单、工作台和报告；并发修改时旧卡片不能覆盖更新后的配置。
-
-## 结构与边界
-
-- `src/server.mjs`：标准 MCP Apps 工具和 HTML 资源，stdio 运行；凭据留在 Python 云端客户端中。
-- `src/progress.mjs`、`session_progress.py`：云端会话最新归档索引、横向进展卡片、搜索分页与完整 L1 预览。详见 [工作进展说明](docs/session-progress.md)。
-- `src/explorer.mjs`：从 `viking://` 根目录浏览，双栏完整目录树、`user/default` 层级、路径导航、隐藏文件、自动 L0/L1、预览/源码/路径切换、JSON 与原生图片预览；大文本每次 200 行追加读取。
-- `src/app.mjs`、`src/ui.mjs`：对话卡片、目录与报告。点击选择保存本地状态，发送消息由当前 Agent 接续，不伪造执行完成。
-- `plugins/openviking-codex-app/scripts/app_backend.py`：同步范围、清单确认、报告发布；状态按连接身份隔离；只有连接明确确认后才能导入。
-- `scripts/history.py`：已授权计划的分批导入、commit、去重和 Working Memory 读取。请求结果未知时不自动重放。
-- `scripts/panel.py`：仅本机的日常工作台；不是 onboarding 入口。
-- `skills/openviking-codex-app/SKILL.md`：安装、确认、导入、跨会话接续和证据驱动报告。
-
-上述 scripts/skills 短路径均相对 `plugins/openviking-codex-app/`。已保存的 Key 不回显到卡片。新输入通过宿主的 App 工具和子进程 stdin 传给配置器，不放在命令参数或工具返回结果中；宿主可能记录工具输入，不能承诺对宿主日志隐身。Key 不进入导入清单或报告。本地状态位于 `~/.openviking/personal/`，按连接隔离；不扫描宿主私有数据库、不采集 Computer History、不自动创建定时任务。
-
-官方依赖由 `upstream.lock.json` 固定 GitHub commit `eb2acdb8b632c83392a10625f39d444f26c3cd09`，版本 0.9.3；校验安装脚本 SHA256 后以同一 commit 安装。固定服务地址为 `https://api.vikingdb.cn-beijing.volces.com/openviking`，不安装开源服务端。首次完整安装会重新注册固定版本的官方 marketplace；`--companion-only` 不做该步骤。连接身份不同必须明确切换，不能静默覆盖。
-
-## 升级与卡片故障
-
-安装器将运行文件复制到 `~/.local/share/ov-personal/runtimes/<内容哈希>/`，并为安装副本写入 Node、Python 和服务入口的绝对路径。源码包保留可移植配置；请通过 install.py 安装。旧快照保留，避免已运行任务的配置指向被删除的缓存目录。MCP 服务启动后，再把自身 Python 后端和界面资源保存为仅当前运行使用的临时代码副本。升级清除旧插件缓存后，已有任务仍可继续运行其原版本。副本不含 Key、历史或报告，用户数据仍在原配置目录。工具结果的 runtimeVersion 标识实际运行版本。
-
-旧任务若已经缓存失效的启动配置，需要重新打开 Codex 加载修复后的配置；安装成功不能当作旧任务已经恢复。修复后的运行副本用于避免以后重复发生。没有卡片时直接用原生选项或文本完成相同流程，不提示卡片缺失或交互方式切换。没有可见原生输入组件时，直接问“使用当前连接，还是更换 API Key？”，不宣称已显示选项。只有脚本和对话也无法继续、需要用户处理时，才说明实际影响和必要恢复动作。
-
-## 可恢复的接入流程
-
-`get_state.onboarding` 提供当前 phase、nextAction、协作规则、导入进度、已核查能力与用户下一步。卡片和 stdin 脚本共用按连接隔离的状态。规则准备只写私有提案；已有规则也必须展示“沿用这个方式 / 调整”，记录本次选择后才进入历史范围。选择沿用不写 AGENTS.md；同一次接入恢复时保留确认，新连接确认后重新展示。用户采用具体 revision 后，由 Agent 执行 `onboarding.py apply_rules` 保存管理块、备份并读回。文件变化会使提案失效。语义等价与项目覆盖由 Agent 读取实际文件后判断，脚本不凭关键词推断授权。
-
-导入保存冻结计划、回执和任务状态；`history.py verify` 核对消息，`status --wait 10` 有界检查抽取，`collect` 对已完成的新导入优先读取回执指定的归档。终态状态不重复查询，网络错误不重发消息。卡片按 2/5/10/30 秒退避，最多自动刷新 16 次，可手动刷新继续；关闭卡片后不承诺自动唤醒 Agent。长耗时抽取不会阻塞基于已核对原文的摘要。
-
-工作摘要通过 `publish_work(onboarding=true)` 绑定当前范围；更改范围后旧摘要不能冒充新导入完成。CLI 和缺少卡片工具的宿主按同一状态执行完整流程，详见 [脚本契约](plugins/openviking-codex-app/skills/openviking-codex-app/references/onboarding-flow.md)。AGENTS.md 负责行为规则，官方 Hook 的采集开关仍单独核查。
+- 面向火山 OpenViking **个人版**，复用官方 `openviking-memory`；不安装本地 OpenViking 服务端，不自动识别或分流企业版。
+- 自动记忆取决于官方插件与 Hook 的实际启用状态；连接成功不等于所有记忆能力已验证。
+- 历史导入以宿主工具可读取或用户提供的内容为准；不扫描宿主私有数据库，不采集 Computer History。附件原件是否同步会单独说明。
+- 工作台服务运行在用户本机，使用已配置的公有云连接；远程 HTTPS MCP 服务尚未部署。改造思路见 [远程 MCP 方案](docs/remote-mcp.md)。
 
 ## 开发与验证
+
+<details>
+<summary>查看源码入口、验证命令与验收边界</summary>
+
+| 模块 | 入口 |
+| --- | --- |
+| MCP Apps 工具与资源 | [src/server.mjs](src/server.mjs) |
+| 对话卡片与工作台界面 | [src/ui.mjs](src/ui.mjs)、[src/panel.mjs](src/panel.mjs) |
+| 云端目录浏览 | [src/explorer.mjs](src/explorer.mjs)、[目录说明](docs/workspace-browser.md) |
+| 云端 Session 工作进展 | [src/progress.mjs](src/progress.mjs)、[工作进展说明](docs/session-progress.md) |
+| 接入、同步与长期协作 | [插件技能](plugins/openviking-codex-app/skills/openviking-codex-app/SKILL.md)、[流程契约](plugins/openviking-codex-app/skills/openviking-codex-app/references/onboarding-flow.md) |
+| 官方依赖固定版本 | [upstream.lock.json](upstream.lock.json) |
 
 ```bash
 npm ci --ignore-scripts
 npx playwright install chrome
 npm test
-# 本机安装后，检查 Codex 实际解析的启动配置（只读）
+# 安装后检查实际启动配置与宿主注册
 npm run check:installed
-# 新启动 Codex 官方 app-server 核对注册和资源，不创建任务
 npm run check:codex-host
 ```
 
-`npm test` 运行 Python、stdio MCP、卡片界面与完整集成回归。集成回归使用真实 MCP 服务、Python 状态和 App SDK，只模拟宿主消息桥；覆盖连接入口、规则采用、范围选择、跳过导入、清单确认、进度轮询和接续按钮，使用隔离虚构资料，不上传云端。截图保存至 `.local/acceptance/screenshots/`。GitHub Actions 自动执行同一套测试。
+`npm test` 覆盖 Python、stdio MCP、卡片消息桥、接入状态、目录预览与工作进展等回归；使用隔离的示例资料。模拟宿主测试和配置检查不等于 Codex 对话中的真实卡片验收，后者还需核对显示、点击回传与流程推进。详见 [验收记录](docs/card-acceptance.md)。
 
-`check:installed` 使用 Codex 解析后的安装配置，在最小 PATH 下启动服务，验证五个展示工具的 UI 资源元数据、连接卡片数据与 HTML 读取。它不代表 Codex 对话中已经显示卡片。原生宿主验收必须另行核对工具调用、真实显示、点击回传与流程推进；HIL、Markdown、工具 JSON 和安装成功不能替代。详细证据与未通过项见 [验收记录](docs/card-acceptance.md)。
+</details>
 
-## 参考
-
-- 同事 `ov-distributable`：复用标准 MCP Apps 交互形式，以及“概览、报告内容、来源、接续”的组织思路；未启用旧内置采集。
-- [OpenViking Web Studio](https://github.com/volcengine/OpenViking/tree/main/web-studio)：参考目录导航与分栏预览，独立实现当前公有云 Key 有权访问的完整目录浏览；不包含 VikingBot。
-- [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)：标准卡片桥接。
-- 第三方依赖许可见分发插件内 `THIRD_PARTY_NOTICES.txt`。本仓库已公开；尚未指定本项目的开源许可证，公开可访问不等于授予任意再分发许可。
-
-## 卡片预览
-
-以下为模拟宿主截图，不是 Codex 原生宿主验收截图。
-
-![连接确认](docs/screenshots/connection-card.png)
-![输入 Key](docs/screenshots/api-key-card.png)
-![协作方式](docs/screenshots/collaboration-card.png)
-![范围选择](docs/screenshots/onboarding-card.png)
-![从今天开始](docs/screenshots/start-today-card.png)
-![接续摘要](docs/screenshots/continuation-card.png)
-![报告](docs/screenshots/reports-card.png)
-![侧边工作台目录](docs/screenshots/workspace-sidebar.png)
+交互参考 [OpenViking Web Studio](https://github.com/volcengine/OpenViking/tree/main/web-studio) 与 [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)。第三方依赖许可见插件内的 [THIRD_PARTY_NOTICES.txt](plugins/openviking-codex-app/THIRD_PARTY_NOTICES.txt)。本仓库尚未指定项目开源许可证，公开可访问不等于授予任意再分发许可。
