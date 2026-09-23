@@ -40,6 +40,8 @@ tool('connect_key','验证用户在卡片输入的 Key，成功后更新官方�
 tool('select_scope','保存同步范围；不上传。用户点击后由 App 发消息请 Agent 准备清单。',{mode:z.enum(['recent','projects','description','skip']),days:z.union([z.literal(7),z.literal(30),z.literal(90)]).optional(),text:z.string().max(2000).optional()},'scope',{appOnly:true});
 tool('review_import','读取本地历史计划，展示完整待同步清单，用户确认之前不得上传。coverage 必须说明覆盖范围及缺口。',{path:z.string(),coverage:z.string().min(1)},'review',{view:'onboarding'});
 tool('confirm_import','用户点击确认后保存清单 hash；不自动上传。',{hash:z.string().regex(/^[a-f0-9]{64}$/)},'confirm',{appOnly:true});
+tool('check_memory','只读检查官方插件、宿主 Hook 信任、Node 路径及当前项目自动记忆开关。首次传当前实际项目 cwd，不能使用临时运行目录。不执行 Hook，不把配置就绪当成采集验证。',{cwd:z.string().optional()},'memory_check');
+tool('choose_memory','保存用户选择的自动记忆或按需使用；不更改或信任 Hooks。',{mode:z.enum(['automatic','manual'])},'memory_choose',{appOnly:true});
 tool('prepare_collaboration','检查实际生效 AGENTS.md 和覆盖规则后准备协作设置。reuse 用于已有同等授权并提供 evidence，但仍展示沿用/调整选择，不自动确认；merge 只准备管理块，用户确认后由 Agent 调用 onboarding.py apply_rules 保存。',{path:z.string(),mode:z.enum(['reuse','merge']),scope:z.enum(['global','project']),summary:z.array(z.string().min(1)).min(1).max(8),block:z.string().optional(),evidence:z.string().optional(),check_files:z.array(z.string()).optional()},'rules_prepare',{view:'onboarding'});
 tool('choose_collaboration','用户选择采用或调整已展示的协作方式。',{revision:z.string(),choice:z.enum(['adopt','adjust'])},'rules_choose',{appOnly:true});
 tool('import_status','查询当前已确认导入的抽取状态；仅检查状态，不重新导入。',{jobId:z.string().regex(/^[a-f0-9]{64}$/)},'import_status',{readOnly:true});

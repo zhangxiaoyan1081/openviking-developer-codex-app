@@ -38,6 +38,16 @@ const assert=require('node:assert/strict');
   py("cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'fixture-only'});cloud.save('connection.json',{'verifiedAt':'fixture'})");
   await deliver(await call('show_onboarding',{step:'connection'}));
   await frame.getByRole('button',{name:'使用当前连接',exact:true}).waitFor();steps.push('existing connection still shown on explicit entry');
+  await deliver(await call('show_onboarding'));
+  await frame.getByText('怎样使用记忆',{exact:true}).waitFor();
+  await page.locator('iframe').first().screenshot({path:'docs/screenshots/memory-mode-card.png'});
+  await frame.locator('[data-memory=automatic]').click();
+  assert.equal((await call('get_state')).structuredContent.onboarding.phase,'hooks');
+  // Synthetic host evidence, no real hooks or cloud writes in this test.
+  py("r=cloud.load('memory-mode.json');r['check']={'status':'disabled','automaticReady':False,'manualReady':True};cloud.save('memory-mode.json',r)");
+  await deliver(await call('show_onboarding'));
+  await frame.locator('[data-memory=manual]').click();
+  await frame.getByText('今后怎样协作',{exact:true}).waitFor();steps.push('hooks gate -> explicit manual choice -> collaboration');
   const proposal=await call('prepare_collaboration',{path:path.join(tmp,'AGENTS.md'),mode:'merge',scope:'global',summary:['按需读取，保存明确批准的资料'],block:'Read relevant context and save approved deliverables.'});
   await deliver(proposal);await frame.getByRole('button',{name:'采用这个方式',exact:true}).click();
   await page.waitForFunction(()=>messages.some(m=>m.content[0].text.includes('apply_rules')));
@@ -52,7 +62,7 @@ const assert=require('node:assert/strict');
   // Reconnecting with existing AGENTS.md must still show the collaboration choice.
   const beforeRules=await fs.readFile(path.join(tmp,'AGENTS.md'),'utf8');
   const beforeMtime=(await fs.stat(path.join(tmp,'AGENTS.md'))).mtimeMs;
-  py("cloud.save('connection.json',{'verifiedAt':'fixture-reconnect'})");
+  py("cloud.save('connection.json',{'verifiedAt':'fixture-reconnect'});r=cloud.load('memory-mode.json');r['connectionReview']='fixture-reconnect';cloud.save('memory-mode.json',r);onboarding.choose_memory({'mode':'manual'})");
   const reuseArgs={path:path.join(tmp,'AGENTS.md'),mode:'reuse',scope:'global',summary:['按需读取，保存明确批准的资料'],evidence:'The fixture user previously adopted these exact rules.'};
   await deliver(await call('prepare_collaboration',reuseArgs));
   await frame.getByRole('button',{name:'沿用这个方式',exact:true}).waitFor();

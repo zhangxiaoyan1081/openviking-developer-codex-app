@@ -6,7 +6,7 @@ import path from 'node:path';
 // Pin code/assets before serving calls, and never inherit the removable cache cwd.
 // This snapshot contains distributable files only, no user config or credentials.
 export async function pinRuntime(source){
- const files=['scripts/app_backend.py','scripts/cloud.py','scripts/connection.py','scripts/history.py','scripts/onboarding.py','scripts/panel.py','scripts/workspace.py','scripts/session_progress.py','assets/app.html','assets/index.html'];
+ const files=['scripts/app_backend.py','scripts/cloud.py','scripts/connection.py','scripts/history.py','scripts/onboarding.py','scripts/hook_setup.py','scripts/panel.py','scripts/workspace.py','scripts/session_progress.py','assets/app.html','assets/index.html'];
  const [manifest,...contents]=await Promise.all([readFile(path.join(source,'.codex-plugin/plugin.json'),'utf8'),...files.map(file=>readFile(path.join(source,file)))]);
  const root=await mkdtemp(path.join(tmpdir(),'openviking-codex-app-runtime-'));
  try{

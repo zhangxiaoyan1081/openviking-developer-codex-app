@@ -1,7 +1,7 @@
 import json,unittest,fcntl
 from unittest.mock import patch
 import test_personal as fixtures
-import cloud,history,onboarding,app_backend,workspace
+import cloud,history,onboarding,app_backend,workspace,hook_setup
 
 class OnboardingTests(unittest.TestCase):
  setUp=fixtures.PersonalTests.setUp
@@ -49,8 +49,11 @@ class OnboardingTests(unittest.TestCase):
   record=cloud.load('collaboration.json')
   self.assertEqual(onboarding.state()['phase'],'ready')
   cloud.save('connection.json',{'verifiedAt':'new-connection-review'})
-  self.assertEqual(onboarding.state()['phase'],'collaboration')
+  self.assertEqual(onboarding.state()['phase'],'hooks')
   self.assertIsNone(app_backend.state()['scope'])
+  with patch.object(hook_setup,'inspect',return_value={'status':'disabled','automaticReady':False,'manualReady':True}):onboarding.check_memory({'cwd':str(self.root)})
+  onboarding.choose_memory({'mode':'manual'})
+  record=onboarding.prepare_rules({'path':str(self.root/'AGENTS.md'),'mode':'reuse','scope':'global','summary':['沿用已有规则'],'evidence':'Explicit user rules'})
   onboarding.choose_rules({'revision':record['revision'],'choice':'adopt'})
   self.assertEqual(onboarding.state()['phase'],'scope')
   self.assertEqual(onboarding.state()['phase'],'scope')
@@ -158,3 +161,22 @@ class OnboardingTests(unittest.TestCase):
    fcntl.flock(lock,fcntl.LOCK_EX)
    self.assertEqual(history.status(plan)['items']['source-a']['state'],'submitted')
    request.assert_not_called()
+
+ def test_hook_gate_requires_choice_and_verified_host_not_a_click(self):
+  (cloud.folder()/'memory-mode.json').unlink()
+  self.assertEqual(onboarding.state()['phase'],'hooks')
+  with self.assertRaises(ValueError):self.prepare()
+  onboarding.choose_memory({'mode':'automatic'})
+  self.assertEqual(onboarding.state()['phase'],'hooks')
+  with patch.object(hook_setup,'inspect',return_value={'status':'review','automaticReady':False,'manualReady':False}):onboarding.check_memory({'cwd':str(self.root)})
+  with self.assertRaises(ValueError):app_backend.dispatch('scope',{'mode':'skip'})
+  with patch.object(hook_setup,'inspect',return_value={'status':'ready','automaticReady':True,'manualReady':False}):onboarding.check_memory({'cwd':str(self.root)})
+  self.assertEqual(onboarding.state()['phase'],'collaboration')
+  self.assertNotEqual(onboarding.state()['capabilities'].get('hooks'),'verified')
+  onboarding.choose_memory({'mode':'manual'})
+  self.assertEqual(onboarding.state()['phase'],'hooks')
+
+ def test_failed_recheck_revokes_previous_readiness(self):
+  with patch.object(hook_setup,'inspect',side_effect=RuntimeError('failed')):onboarding.check_memory({'cwd':str(self.root)})
+  self.assertFalse(onboarding.memory_public()['ready'])
+  with self.assertRaises(ValueError):onboarding.choose_rules({'revision':cloud.load('collaboration.json')['revision'],'choice':'adopt'})

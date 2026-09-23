@@ -1,15 +1,15 @@
 {
   "name": "openviking-codex-app",
-  "version": "0.2.0+codex.20260921161107",
-  "description": "\u8fde\u63a5\u706b\u5c71 OpenViking\uff0c\u5e26\u5165\u5df2\u6709\u5de5\u4f5c\u5e76\u7ee7\u7eed\u3002",
+  "version": "0.2.1",
+  "description": "连接火山 OpenViking，带入已有工作并继续。",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "OpenViking Codex App",
-    "shortDescription": "\u5e26\u4e0a\u8fc7\u53bb\u7684\u5de5\u4f5c\uff0c\u63a5\u7740\u505a\u3002",
-    "longDescription": "\u7528\u5bf9\u8bdd\u5361\u7247\u63a5\u5165\u706b\u5c71 OpenViking\uff0c\u63a5\u7eed\u5df2\u6709\u5de5\u4f5c\uff0c\u6d4f\u89c8\u76ee\u5f55\u5e76\u751f\u6210\u6709\u6765\u6e90\u7684\u62a5\u544a\u3002",
+    "shortDescription": "带上过去的工作，接着做。",
+    "longDescription": "用对话卡片接入火山 OpenViking，接续已有工作，浏览目录并生成有来源的报告。",
     "developerName": "Local developer",
     "category": "Productivity",
     "capabilities": [
@@ -18,9 +18,9 @@
       "Interactive"
     ],
     "defaultPrompt": [
-      "\u63a5\u5165 OpenViking",
-      "\u6253\u5f00\u6211\u7684 OpenViking \u5de5\u4f5c\u53f0",
-      "\u751f\u6210\u672c\u5468\u5de5\u4f5c\u5468\u62a5"
+      "接入 OpenViking",
+      "打开我的 OpenViking 工作台",
+      "生成本周工作周报"
     ],
     "composerIcon": "./assets/openviking.svg",
     "logo": "./assets/openviking.svg",

@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 import cloud
 import connection
+import hook_setup
 
 START = '<!-- openviking-codex-app:start -->'
 END = '<!-- openviking-codex-app:end -->'
@@ -32,13 +33,57 @@ def read(path):
 def connection_review():
     return cloud.load('connection.json', {}).get('verifiedAt')
 
+def memory_public():
+    record = cloud.load('memory-mode.json', {})
+    current = record.get('connectionReview') == connection_review()
+    check = record.get('check', {}) if current else {}
+    mode = record.get('mode') if current else None
+    ready = bool(mode and check.get('automaticReady' if mode == 'automatic' else 'manualReady'))
+    return {'mode':mode,'ready':ready,'check':check,'revision':record.get('revision') if current else None}
+
+def require_memory():
+    value = memory_public()
+    if not value['ready']:
+        raise ValueError('请先选择记忆方式并检查 Hooks。')
+    return value
+
+def check_memory(value):
+    connection.require_ready()
+    record = cloud.load('memory-mode.json', {})
+    cwd = value.get('cwd') or record.get('cwd')
+    if not cwd or not Path(cwd).is_absolute() or not Path(cwd).is_dir():
+        raise ValueError('请先由 Codex 检查当前项目的记忆设置。')
+    try:
+        check = hook_setup.inspect(cwd)
+    except (OSError,ValueError,RuntimeError,hook_setup.queue.Empty,hook_setup.subprocess.SubprocessError):
+        check = {'status':'unknown','automaticReady':False,'manualReady':False,'message':'暂时无法核对，请让 Codex 检查官方插件。'}
+    if record.get('connectionReview') != connection_review():
+        record = {}
+    record.update(cwd=cwd,check=check,connectionReview=connection_review())
+    cloud.save('memory-mode.json',record)
+    return memory_public()
+
+def choose_memory(value):
+    connection.require_ready()
+    if value['mode'] not in ('automatic','manual'):
+        raise ValueError('请选择记忆方式。')
+    record = cloud.load('memory-mode.json', {})
+    if record.get('connectionReview') != connection_review():
+        record = {'connectionReview':connection_review()}
+    # A click is consent, not evidence that hooks have been enabled or disabled.
+    record.update(mode=value['mode'],revision=digest(connection_review()+value['mode']),chosenAt=now())
+    cloud.save('memory-mode.json',record)
+    return memory_public()
+
 def rules_public():
     record = cloud.load('collaboration.json', {})
     if not record:
         return {'status': 'unreviewed'}
     valid = all(digest(read(p)) == h for p, h in record['files'].items())
-    confirmed = bool(record.get('confirmedAt')) and record.get('connectionReview') == connection_review()
+    confirmed = bool(record.get('confirmedAt')) and record.get('connectionReview') == connection_review() and record.get('memoryRevision') == memory_public()['revision']
     status = record['status']
+    if record.get('memoryRevision') != memory_public()['revision']:
+        status = 'changed'
     if status in ('active', 'accepted') and not confirmed:
         status = 'proposed'
     return {k: record[k] for k in ('revision', 'summary', 'scope', 'mode', 'status') } | {
@@ -47,6 +92,7 @@ def rules_public():
 def prepare_rules(value):
     """Prepare a managed block or record explicitly reviewed existing rules."""
     connection.require_ready()
+    memory = require_memory()
     path = Path(value['path']).expanduser()
     if not path.is_absolute() or path.name not in ('AGENTS.md', 'AGENTS.override.md'):
         raise ValueError('请选择实际生效的 AGENTS.md。')
@@ -79,18 +125,19 @@ def prepare_rules(value):
     files[str(path)] = digest(original)
     record = {'path': str(path), 'files': files, 'content': proposed, 'summary': summary,
               'scope': value['scope'], 'mode': mode, 'status': 'proposed', 'connectionReview': connection_review(),
-              'evidence': value.get('evidence', ''), 'updatedAt': now()}
-    record['revision'] = digest(json.dumps({k:record[k] for k in ('files','content','summary','scope','mode','connectionReview')},sort_keys=True,ensure_ascii=False))
+              'memoryRevision':memory['revision'], 'evidence': value.get('evidence', ''), 'updatedAt': now()}
+    record['revision'] = digest(json.dumps({k:record[k] for k in ('files','content','summary','scope','mode','connectionReview','memoryRevision')},sort_keys=True,ensure_ascii=False))
     previous = cloud.load('collaboration.json', {})
-    if all(previous.get(k) == record[k] for k in ('files','content','summary','scope','mode','connectionReview')) and previous.get('confirmedAt') and previous.get('status') in ('accepted','active'):
+    if all(previous.get(k) == record[k] for k in ('files','content','summary','scope','mode','connectionReview','memoryRevision')) and previous.get('confirmedAt') and previous.get('status') in ('accepted','active'):
         record['status'] = previous['status']
         record['confirmedAt'] = previous['confirmedAt']
     cloud.save('collaboration.json', record)
     return rules_public()
 
 def choose_rules(value):
+    memory = require_memory()
     record = cloud.load('collaboration.json', {})
-    if value['revision'] != record.get('revision') or rules_public()['status'] == 'changed':
+    if value['revision'] != record.get('revision') or rules_public()['status'] == 'changed' or record.get('memoryRevision') != memory['revision']:
         raise ValueError('协作设置已变化，请重新查看。')
     if value['choice'] not in ('adopt','adjust'):
         raise ValueError('请选择协作方式。')
@@ -105,6 +152,7 @@ def choose_rules(value):
 
 def apply_rules(value):
     connection.require_ready()
+    require_memory()
     record = cloud.load('collaboration.json', {})
     if value['revision'] != record.get('revision') or rules_public()['status'] not in ('accepted','active'):
         raise ValueError('请先确认这份协作设置。')
@@ -167,10 +215,11 @@ def state():
     plan = cloud.load('review.json')
     record = cloud.load('onboarding.json', {})
     summary_ready = scope_current and record.get('summaryFor') == scope_key() and bool(cloud.load('workspace.json',{}).get('works'))
-    phase = 'collaboration' if rules['status'] != 'active' else 'scope' if not scope_current else 'ready' if scope['mode'] == 'skip' else 'ready' if summary_ready else 'import' if plan and plan.get('confirmed') else 'review' if plan else 'prepare'
-    return {'phase':phase, 'collaboration':rules, 'import':progress() if scope_current else None, 'scopeCurrent':scope_current, 'summaryReady':summary_ready,'scopeRevision':scope_key(),
+    memory = memory_public()
+    phase = 'hooks' if not memory['ready'] else 'collaboration' if rules['status'] != 'active' else 'scope' if not scope_current else 'ready' if scope['mode'] == 'skip' else 'ready' if summary_ready else 'import' if plan and plan.get('confirmed') else 'review' if plan else 'prepare'
+    return {'phase':phase, 'memory':memory, 'collaboration':rules, 'import':progress() if scope_current else None, 'scopeCurrent':scope_current, 'summaryReady':summary_ready,'scopeRevision':scope_key(),
             'choice':record.get('choice'), 'capabilities':record.get('capabilities',{}),
-            'nextAction': {'collaboration':'review_rules','scope':'select_scope','prepare':'prepare_import','review':'confirm_import','import':'restore_summary','ready':'choose_work'}[phase]}
+            'nextAction': {'hooks':'configure_memory','collaboration':'review_rules','scope':'select_scope','prepare':'prepare_import','review':'confirm_import','import':'restore_summary','ready':'choose_work'}[phase]}
 
 def choose_next(value):
     current = state()
@@ -195,7 +244,7 @@ def capabilities(value):
 if __name__ == '__main__':
     try:
         connection.require_ready()
-        actions = {'state':lambda _:state(),'prepare_rules':prepare_rules,'choose_rules':choose_rules,'apply_rules':apply_rules,'choose_next':choose_next,'capabilities':capabilities}
+        actions = {'state':lambda _:state(),'prepare_rules':prepare_rules,'choose_rules':choose_rules,'apply_rules':apply_rules,'choose_next':choose_next,'capabilities':capabilities,'check_memory':check_memory,'choose_memory':choose_memory}
         print(json.dumps(actions[sys.argv[1]](json.load(sys.stdin)),ensure_ascii=False))
     except (ValueError,KeyError,OSError,cloud.CloudError) as error:
         print(json.dumps({'error':str(error) if isinstance(error,(ValueError,cloud.CloudError)) else '设置未完成，请核对文件权限。'},ensure_ascii=False));sys.exit(1)

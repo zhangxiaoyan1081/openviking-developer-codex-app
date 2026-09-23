@@ -28,6 +28,8 @@ python3 install.py --companion-only
 使用 openviking-codex-app 接入 OpenViking。
 ```
 
+更新 App 默认保留已安装的官方插件、Node 启动路径和信任设置；官方插件独立升级。首次安装才使用仓库锁定版本并配置 Node 绝对路径，避免桌面环境找不到 Node。
+
 这个命令安装交互插件；后续接入流程会检查并按需安装官方 `openviking-memory`，分别验证连接与记忆能力。分发包包含打包后的界面，使用者无需执行 `npm install`。
 
 如果你已从火山控制台复制了含 API Key 的接入指令，直接交给 Codex 即可，无需再次填写 Key。控制台集成见 [接入指令模板](docs/console-connect.md)。
@@ -40,7 +42,16 @@ python3 install.py --companion-only
 
 ![已有连接时，选择使用当前连接或更换 API Key](docs/screenshots/connection-card.png)
 
-### 2. 确认今后如何协作
+### 2. 选择记忆方式
+
+- **自动记忆（推荐）**：启用官方 Hooks，自动召回相关内容、保存对话。已有召回足够时不重复检索。
+- **按需使用**：需要时检索，按约定保存资料，关闭普通对话的自动回流。
+
+首次安装官方插件后，Codex 会先引导你在 `/hooks` 中启用并信任，再检查状态。选择按需使用时，会先确认 Hooks 已关闭。配置就绪不等于实际采集和抽取已验证。
+
+![选择自动记忆或按需使用](docs/screenshots/memory-mode-card.png)
+
+### 3. 确认今后如何协作
 
 确认 Codex 何时参考记忆、保存哪些重要进展与交付物，以及如何说明信息的使用。你可以采用建议，也可以调整。
 
@@ -48,7 +59,7 @@ python3 install.py --companion-only
 
 ![确认长期协作方式及规则生效范围](docs/screenshots/collaboration-card.png)
 
-### 3. 选择是否带入过去的工作
+### 4. 选择是否带入过去的工作
 
 可以选择**最近 7 天、1 个月、3 个月**的工作，选择一个或多个项目，或者用自己的话描述范围，例如：
 
@@ -58,7 +69,7 @@ Codex 先整理可读取的历史清单，说明覆盖范围与缺口，等你�
 
 ![按时间、项目或自然语言选择历史范围，也可以从现在开始](docs/screenshots/onboarding-card.png)
 
-### 4. 查看同步进度，回顾已有工作
+### 5. 查看同步进度，回顾已有工作
 
 确认导入后，可以查看写入、读回核对与记忆整理的状态。云端抽取可能需要时间；已有可读取的概览或核对过的原始对话时，Codex 可以先帮你恢复工作背景。
 

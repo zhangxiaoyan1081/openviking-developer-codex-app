@@ -12,7 +12,7 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
  const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/openviking-codex-app/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
  try{
   await client.connect(transport);
-  const {tools}=await client.listTools();assert.equal(tools.length,20);
+  const {tools}=await client.listTools();assert.equal(tools.length,22);
   assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['prepare_collaboration','publish_report','publish_work','review_import','show_onboarding']);
   for(const name of ['get_state','open_workspace_panel','show_workspace'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
   const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
@@ -36,10 +36,11 @@ test('MCP cards and stdin fallback share rule approval, readback and skip contin
  const client=new Client({name:'flow-test',version:'1'});
  try{
   await client.connect(new StdioClientTransport({command:process.execPath,args:[path.join(scripts,'app_server.mjs')],env}));
-  const initial=await client.callTool({name:'get_state',arguments:{}});assert.equal(initial.structuredContent.onboarding.phase,'collaboration');
+  const initial=await client.callTool({name:'get_state',arguments:{}});assert.equal(initial.structuredContent.onboarding.phase,'hooks');
   const connection=await client.callTool({name:'show_onboarding',arguments:{step:'connection'}});
   assert.equal(connection.structuredContent.connection.ready,false);
   assert.equal(connection.structuredContent.connection.canReuse,true);
+  python(`import sys;sys.path.insert(0,${JSON.stringify(scripts)});import cloud,onboarding;cloud.save('memory-mode.json',{'connectionReview':'2026-09-21T00:00:00Z','check':{'manualReady':True}});onboarding.choose_memory({'mode':'manual'})`);
   const draft=await client.callTool({name:'prepare_collaboration',arguments:{path:path.join(temp,'AGENTS.md'),mode:'merge',scope:'global',summary:['保存批准的重要产出'],block:'Save approved deliverables.'}});
   assert.equal(draft.structuredContent.view,'onboarding');
   const revision=draft.structuredContent.onboarding.collaboration.revision;

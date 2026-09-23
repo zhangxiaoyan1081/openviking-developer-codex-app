@@ -31,6 +31,7 @@ export function createUI({call,send,expand,panel=false}){
   if(!state.connection?.ready||keyEntry){connect();return;}
   revision++;$('#header-actions').innerHTML='<span class="pill">连接已验证</span><button class="quiet" data-action="refresh">刷新</button><button class="quiet" data-action="change-key">更换连接</button>';
   const flow=choosingScope?{...state.onboarding,phase:'scope'}:state.onboarding;
+  if(flow?.phase==='hooks'){memorySetup();return;}
   if(flow?.phase==='collaboration'){collaboration();return;}
   if(flow?.phase==='ready'){if(state.scope?.mode!=='skip'&&!summaryCard)importProgress(true);else ready();return;}
   if(flow?.phase==='import'){
@@ -40,6 +41,11 @@ export function createUI({call,send,expand,panel=false}){
   if(state.plan&&!choosingScope){const p=state.plan;main.innerHTML=`<h1>${p.confirmed?'已确认同步范围':'带入这些工作？'}</h1><p class="muted">${esc(p.coverage)}</p><div class="review">${p.items.map(x=>`<article><strong>${esc(x.title)}</strong><div class="muted">${esc(x.project||'未归入项目')} · ${x.reuse?'复用已有记录':`${x.messages} 条消息`}</div></article>`).join('')}</div><div class="row spaced"><span class="muted">共 ${p.items.length} 个会话</span><div class="row"><button data-action="reset">调整范围</button><button class="primary" data-action="confirm">${p.confirmed?'继续同步':'确认同步'}</button></div></div>`;return;}
   if(scopeMode){main.innerHTML=`<h1>${scopeMode==='recent'?'带入近期工作':scopeMode==='projects'?'带入哪些项目？':'想带入哪些工作？'}</h1><div class="field">${scopeMode==='recent'?'<label for="days">时间范围</label><select id="days"><option value="7">最近 7 天</option><option value="30" selected>最近 1 个月</option><option value="90">最近 3 个月</option></select>':`<label for="scope-text">${scopeMode==='projects'?'项目名称，可填写多个':'同步范围'}</label><textarea id="scope-text" placeholder="${scopeMode==='projects'?'例如：OpenViking、网站改版':'例如：近三个月的产品调研，不含客户支持'}"></textarea>`}</div><div class="actions"><button data-action="back">返回</button><button data-action="select" class="primary">继续</button></div>`;return;}
   main.innerHTML=`<h1>带上过去的工作</h1>${flow?.collaboration?.mode==='reuse'?`<details><summary>沿用已有协作方式。</summary>${(flow.collaboration.summary||[]).map(x=>`<p>${esc(x)}</p>`).join('')}<p class="muted">${flow.collaboration.scope==='global'?'适用于所有 Codex 项目':'适用于当前项目'}</p></details>`:''}<p class="muted">选择范围，Codex 会先为你整理清单。</p><div class="choices"><button class="choice" data-scope="recent"><strong>近期全部工作</strong><span>7 天、1 个月、3 个月</span></button><button class="choice" data-scope="projects"><strong>选择项目</strong><span>一个或多个项目</span></button><button class="choice" data-scope="description"><strong>描述范围</strong><span>用自己的话说</span></button></div><button class="quiet" data-action="skip">从现在开始 →</button><button class="quiet" data-action="settings">调整协作方式</button>`;
+ }
+ function memorySetup(){
+  const m=state.onboarding.memory||{},c=m.check||{};
+  const guidance=m.mode==='manual'&&!c.manualReady?'在 /hooks 中关闭 OpenViking Hooks，再检查。':c.message||'先检查官方记忆插件，再选择使用方式。';
+  main.innerHTML=`<h1>怎样使用记忆</h1><div class="choices"><button class="choice" data-memory="automatic"><strong>自动记忆 · 推荐</strong><span>自动召回相关内容并保存对话</span></button><button class="choice" data-memory="manual"><strong>按需使用</strong><span>需要时检索，按约定保存资料</span></button></div>${m.mode?`<p>已选择：${m.mode==='automatic'?'自动记忆':'按需使用'}</p>`:''}<p class="muted">${esc(guidance)}</p><div class="actions"><button class="primary" data-action="check-memory">检查状态</button>${c.status==='absent'||c.status==='runtime'||c.status==='unknown'?'<button data-action="setup-memory">帮助设置</button>':''}</div>`;
  }
  function collaboration(){
   const r=state.onboarding.collaboration;
@@ -59,7 +65,7 @@ export function createUI({call,send,expand,panel=false}){
  function workCards(){return (state.workspace?.works||[]).map((w,i)=>`<article class="card"><div class="tag">${esc(w.project||'我的工作')}</div><h2>${esc(w.title)}</h2>${w.goal?`<p>${esc(w.goal)}</p>`:''}<strong>上次停在这里</strong><p>${esc(w.state)}</p>${w.decisions?`<p>已确定：${esc(w.decisions)}</p>`:''}${w.openIssues?`<p>待处理：${esc(w.openIssues)}</p>`:''}<strong>建议下一步</strong><p>${esc(w.next)}</p><p class="muted">${esc(w.coverage||'')}</p><footer>${panel?'':`<button data-work="${i}" class="primary">回顾这项工作</button><button data-correct="${i}">修正总结</button>`}</footer>${sources(w.sources||[])}</article>`).join('');}
  function ready(){
   const f=state.onboarding,skipped=state.scope?.mode==='skip';
-  main.innerHTML=`<h1>${skipped?'从今天开始积累':'接着上次的工作做'}</h1>${skipped?`<div class="stack">${(f.collaboration.summary||[]).map(x=>`<p>${esc(x)}</p>`).join('')}</div><p class="muted">下次可以说“继续上次的工作”，也可以让我整理周报。</p>`:`<div class="cards">${workCards()}</div>`}<p class="muted">${f.capabilities?.hooks==='verified'?'对话回流已验证。':'自动回流尚未验证，可先在对话中主动保存和读取。'}</p><div class="actions"><button class="${skipped?'primary':''}" data-next="start">开始一项工作</button><button data-next="save">保存一份资料</button><button data-next="later">稍后</button><button class="quiet" data-action="settings">调整协作方式</button></div>${f.choice==='later'?'<p class="muted">设置已保留，随时可以开始。</p>':''}`;
+  main.innerHTML=`<h1>${skipped?'从今天开始积累':'接着上次的工作做'}</h1>${skipped?`<div class="stack">${(f.collaboration.summary||[]).map(x=>`<p>${esc(x)}</p>`).join('')}</div><p class="muted">下次可以说“继续上次的工作”，也可以让我整理周报。</p>`:`<div class="cards">${workCards()}</div>`}<p class="muted">${f.memory?.mode==='manual'?'按需使用已开启，需要时让我检索或保存。':f.capabilities?.hooks==='verified'?'对话回流已验证。':'自动回流尚未验证，可先在对话中主动保存和读取。'}</p><div class="actions"><button class="${skipped?'primary':''}" data-next="start">开始一项工作</button><button data-next="save">保存一份资料</button><button data-next="later">稍后</button><button class="quiet" data-action="settings">调整协作方式</button></div>${f.choice==='later'?'<p class="muted">设置已保留，随时可以开始。</p>':''}`;
  }
  function sources(items){return items.map(s=>`<button class="source" data-file="${esc(s.uri)}">↗ ${esc(s.label)}</button>`).join('');}
  function workspace(){
@@ -113,6 +119,10 @@ export function createUI({call,send,expand,panel=false}){
   if(d.more){run(()=>read(d.more,Number(d.offset)));return;}
   if(d.report!==undefined){const r=state.reports[Number(d.report)];main.innerHTML=nav()+`<h1>${esc(r.title)}</h1><p class="muted">${esc(r.period)} · ${esc(r.coverage)}</p><article class="report-body">${esc(r.body)}</article><hr>${sources(r.sources)}`;return;}
   run(async()=>{
+   if(d.memory){state={...state,...await call('choose_memory',{mode:d.memory})};onboarding();if(state.onboarding.memory.ready)await notify('使用 openviking-codex-app，按已选记忆方式准备长期协作方案；自动记忆优先使用 Hook 召回，不足时才补查，不重复提交对话。');}
+   if(d.action==='check-memory'&&!state.onboarding.memory?.check?.status){await notify('使用 openviking-codex-app，用实际项目 cwd 调用 check_memory，再展示记忆方式。');return;}
+   if(d.action==='check-memory'){state={...state,...await call('check_memory',{})};onboarding();if(state.onboarding.memory.ready)await notify('使用 openviking-codex-app，记忆设置已核对，按已选方式 prepare_collaboration 展示长期协作方案，等待我确认。');else if(state.onboarding.memory.check.status==='unknown')await notify('使用 openviking-codex-app，用实际项目 cwd 调用 check_memory，核对官方插件与 Hooks 后继续接入。');}
+   if(d.action==='setup-memory')await notify('使用 openviking-codex-app，检查官方记忆插件。已有安装必须复用；仅未安装时执行 install.py --official-only。检查桌面 Node 路径，引导我在 /hooks 中启用并信任，再 check_memory；不要代替我批准 Hooks。');
    if(d.work!==undefined){const w=state.workspace.works[Number(d.work)];if(state.onboarding?.phase==='ready')await call('choose_next',{choice:'continue'});await notify(`使用 openviking-codex-app 回顾「${w.title}」。先读取这些来源核对最新状态：${w.sources.map(x=>x.uri).join('、')}。只总结目标、已完成、当前进展和待解决事项，并建议几个推进方向供我选择。历史建议仅供参考：${w.next}。等待我的下一条指令，不执行任务、不修改文件、不创建新任务。`);}
    if(d.correct!==undefined){const w=state.workspace.works[Number(d.correct)];await notify(`修正「${w.title}」的工作摘要，请问我哪里需要调整。`);}
    if(d.rules){state={...state,...await call('choose_collaboration',{revision:state.onboarding.collaboration.revision,choice:d.rules})};onboarding();if(state.onboarding.collaboration.status!=='active')await notify(d.rules==='adopt'?'使用 openviking-codex-app，按已确认 revision 执行 onboarding.py apply_rules，读回核对，再继续选择历史范围。':'使用 openviking-codex-app，调整已展示的协作方式，先问我需要改变什么。');schedulePoll();}
@@ -129,7 +139,7 @@ export function createUI({call,send,expand,panel=false}){
     message('正在验证连接…');
     const result=await call(d.action==='connect-key'?'connect_key':'connect_existing',args);
     state={...state,...result};keyEntry=false;choosingScope=entryConnection&&state.connection?.ready&&state.onboarding?.collaboration?.status==='active';entryConnection=false;message('');if(state.view==='onboarding')onboarding();else workspace();
-    if(state.view==='onboarding'&&state.connection?.ready&&state.onboarding?.phase==='collaboration'&&['unreviewed','changed','adjusting'].includes(state.onboarding.collaboration.status))await notify('使用 openviking-codex-app，连接已验证，检查已有协作规则和授权，prepare_collaboration 后继续 onboarding。');
+    if(state.view==='onboarding'&&state.connection?.ready&&['hooks','collaboration'].includes(state.onboarding?.phase))await notify('使用 openviking-codex-app，连接已验证，先用实际项目 cwd 调用 check_memory，再 show_onboarding 让我选择记忆方式；完成 Hook 设置后再准备长期协作方案。');
     return;
    }
    if(d.action==='reload'){location.reload();return;}

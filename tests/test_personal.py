@@ -2,7 +2,7 @@ import sys,json,tempfile,unittest,copy
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/openviking-codex-app/scripts'))
-import cloud,history,workspace,panel,onboarding
+import cloud,history,workspace,panel,onboarding,hook_setup
 class PersonalTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
@@ -10,6 +10,8 @@ class PersonalTests(unittest.TestCase):
   for p in self.patches:p.start()
   cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'test-only'})
   cloud.save('connection.json',{'verifiedAt':'2026-09-21T00:00:00Z'})
+  with patch.object(hook_setup,'inspect',return_value={'status':'disabled','automaticReady':False,'manualReady':True}):onboarding.check_memory({'cwd':str(self.root)})
+  onboarding.choose_memory({'mode':'manual'})
   rules=self.root/'AGENTS.md';rules.write_text('Use OV for relevant context and save approved deliverables.')
   prepared=onboarding.prepare_rules({'path':str(rules),'mode':'reuse','scope':'global','summary':['沿用已有规则'],'evidence':'Fixture explicit existing authorization'})
   onboarding.choose_rules({'revision':prepared['revision'],'choice':'adopt'})

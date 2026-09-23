@@ -6,6 +6,8 @@
 |---|---|---|
 | 新接入连接选择 | show_onboarding(step="connection")，不清除已有数据 | 无卡片时按真实配置给当前连接/更换 Key 选项 |
 | 读取状态 | get_state | app_backend.py state，`{}` |
+| 检查 Hooks | check_memory | onboarding.py check_memory，`{cwd:<当前项目绝对路径>}`；只读核查宿主信任、开关与启动环境 |
+| 选择记忆方式 | choose_memory | onboarding.py choose_memory，`{mode:"automatic"或"manual"}`；仅保存选择，不代表实际启停 |
 | 准备协作方案 | prepare_collaboration（直接展示卡片） | onboarding.py prepare_rules，`{path,mode,scope,summary,block?,evidence?,check_files?}` |
 | 用户采用/调整 | choose_collaboration | onboarding.py choose_rules，`{revision,choice:"adopt"或"adjust"}`，仅用户明确选择后 |
 | 落盘规则 | Agent 执行脚本 | onboarding.py apply_rules，`{revision}`，仅 accepted 后；active 可重入 |

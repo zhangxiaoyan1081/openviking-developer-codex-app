@@ -13,14 +13,15 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 1. 指令已包含 API Key 时，用 install.py --configure-stdin 验证并配置，不重复索取。安装器会在验证鉴权及个人目录可读之后记录本次连接确认。已有不同连接时说明切换会影响此设备的官方记忆插件；用户已明确要求切换才使用 --replace-connection。Key 不写进仓库、计划、报告或输出。
 2. 指令没有 Key 时，不自动复用本机旧连接，不先读取旧库资料。必要时用 install.py --companion-only 安装交互插件（无需先有 Key），然后必须调用 show_onboarding(step="connection")，即使以前验证过也展示本次连接选择，不先用 get_state 的 ready 跳过这个入口。用户明确说“继续接入”时才使用默认 current 恢复进度。卡片检测到旧连接时给“使用当前连接 / 更换 API Key”；没有连接时直接给 Key 输入框。不要在聊天中重复询问卡片已经收集的选择。
 3. 连接工具会先验证 Key 和个人目录读取，再原子保存配置；失败保留原连接。用户选择使用当前连接也须验证。get_state.connection.ready 为 true 才进入导入。配置存在 configured=true 不是连接已确认。更换 Key 会同时影响官方插件；当前任务的官方 MCP 代理可能仍持有旧凭据，所以 restartRequired=true 时停止旧库读写，明确引导新开任务发送“继续 OpenViking 接入”。新任务检查实际官方连接与 Hook；若宿主仍复用旧进程则重启 Codex，不假定配置写入等于宿主切换成功。
-4. 连接通过后，检查官方 openviking-memory 是否已安装、工具能否读取当前个人空间，按需完成锁定版本官方安装。安装完成、Hook 执行、记忆抽取和独立接续分别验证。通过 onboarding.py capabilities 记录本轮实际核查的 memoryTools/hooks/appTools/messageBridge（verified/unverified/unavailable），未知就 unverified。需要宿主信任时给明确操作；不要把读取配置或脚本成功当成宿主工具/Hook 验证。**先按下一节核对协作方式，再展示历史范围**，不调用浏览器代替卡片。
-5. 用户点击近 7/30/90 天、项目、描述范围或从现在开始后，卡片通过 select_scope 和 sendMessage 接回对话；get_state 读取实际选择。用户主动给出的 Key 已验证时，直接进入这一阶段，不再要求填写或重复确认同一连接。
+4. 连接通过后，检查官方 openviking-memory 是否已安装、工具能否读取当前个人空间，已有官方插件必须复用，不能为了更新 App 重装、降级或覆盖其启动配置。仅未安装时，在已验证连接后运行仓库 install.py --official-only 安装锁定的官方版本；安装器仅为本次新安装解析 Node 绝对路径。官方升级独立进行，升级后重新检查启动路径和信任。安装完成、Hook 执行、记忆抽取和独立接续分别验证。通过 onboarding.py capabilities 记录本轮实际核查的 memoryTools/hooks/appTools/messageBridge（verified/unverified/unavailable），未知就 unverified。需要宿主信任时给明确操作；不要把读取配置或脚本成功当成宿主工具/Hook 验证。**先完成下文“记忆方式与 Hooks”，再核对长期协作方式，最后展示历史范围**，不调用浏览器代替卡片。
+5. 用户点击近 7/30/90 天、项目、描述范围或从现在开始后，卡片通过 select_scope 和 sendMessage 接回对话；get_state 读取实际选择。用户主动给出的 Key 已验证时，先完成记忆方式与协作设置，再进入这一阶段，不再要求填写或重复确认同一连接。
 6. 宿主不支持 MCP Apps 或 CLI 没有卡片时，使用原生选项/文本完成相同连接确认。用户明确同意复用时可通过 connection.py 的 Python API select(revision=snapshot()[1]) 验证；Key 只通过安装器 stdin。不能靠直接写 connection.json 伪造确认。没有可用消息桥时直接使用原生选项或文本推进，不解释界面切换；只有确实阻塞后续操作时才说明必要恢复动作，并保留无凭据进度。
 
 ## 卡片调用要求
 
 桌面端先查找并调用当前注册的 show_onboarding；技能文件可读不等于 App 工具已加载，但也不能未经检查就认定工具不存在。工具可用时优先可视化卡片，不以 HIL 单选、Markdown 或脚本输出代替。只有工具确实不可调用或当前宿主无 Apps 支持时才用对话兜底，并遵守下文的简洁提示规则。
 
+- 连接通过后：check_memory(cwd)，show_onboarding 展示自动记忆/按需使用；Hook 设置完成前不能展示长期协作卡。
 - 新接入未提供 Key：show_onboarding(step="connection")。已提供 Key 且验证通过可跳过重复输入，但继续展示后续卡片。
 - prepare_collaboration 直接展示协作方案卡，已有规则也展示“沿用这个方式 / 调整”。规则应用落盘后再 show_onboarding，进入范围选择。
 - review_import 直接展示清单；用户在卡片确认后，原卡片自动切换到整理进度，不再调用 show_onboarding 新增同一张进度卡，再运行已授权的导入。用户通过文字确认且没有进度卡时才调用一次 show_onboarding。运行较长时让当前执行工具让出控制并更新进度，不等导入全部结束才第一次展示。
@@ -31,7 +32,17 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 
 每次恢复先读 get_state.onboarding 的 phase、nextAction、collaboration、import 与 choice，按当前阶段推进。工具未注册时，以 `python3 <plugin-root>/scripts/app_backend.py state <<<'{}'` 读取同一状态，用脚本完成可用步骤；详细执行契约见 [流程与降级](references/onboarding-flow.md)。不要把技能可读当成工具已加载，也不因卡片不可用跳过后续步骤。
 
-连接 → 确认或沿用协作方式 → 选择是否导入 → 工作摘要或使用预期 → 具体下一步。选择范围、确认计划、提交抽取、发布本地卡片都不是 onboarding 完成。仍有可执行步骤时在同一轮继续，用户不需要另说“继续 onboarding”。仅在等待真正必要的用户选择、宿主操作或用户主动稍后时停下。
+连接 → 选择记忆方式并核对 Hooks → 确认或沿用协作方式 → 选择是否导入 → 工作摘要或使用预期 → 具体下一步。选择范围、确认计划、提交抽取、发布本地卡片都不是 onboarding 完成。仍有可执行步骤时在同一轮继续，用户不需要另说“继续 onboarding”。仅在等待真正必要的用户选择、宿主操作或用户主动稍后时停下。
+
+### 记忆方式与 Hooks
+
+连接后调用 check_memory(cwd=用户当前真实项目绝对路径)，再 show_onboarding。cwd 不能使用 MCP 临时快照目录。每次新的接入都重新核查；已有官方插件或旧协作规则不能跳过本次选择。get_state.onboarding.memory 记录选择和核查结果；phase=hooks 时不得准备长期规则、进入历史范围或结束接入。
+
+- 自动记忆（推荐）：官方 Hooks 自动召回相关内容并保存对话。用户在卡片选择 choose_memory(mode="automatic") 后，若未就绪，引导在 Codex 输入 `/hooks`，启用并信任实际列出的 OpenViking Hooks。不要固定说 4 个，不修改 trusted_hash，不代替用户批准。未安装时先完成官方安装，再引导加载插件/必要的重启和信任。用户操作后再 check_memory；不能把“已点按钮”当成启用证据。
+- 按需使用：需要背景时检索，按用户确认的范围保存资料，不自动回流普通对话。choose_memory(mode="manual") 只记录意愿；若官方 Hooks 还开着，明确引导在 `/hooks` 中关闭 OpenViking Hooks，再 check_memory。不能关闭其他插件，也不能只改 AGENTS.md 冒充关闭采集。未安装官方插件时可采用此方式；实际工具能力仍需单独检查。
+- 卡片的“检查状态”读取宿主注册、信任及开关；检查只证明配置就绪，不证明当前旧任务已热加载，也不证明完成了采集/commit/抽取。Host 不支持检查或状态未知时留在此阶段，给一个必要恢复动作，或者采用已核查可用的按需方式；不得伪造能力状态。
+- 配置就绪且已选择后，在同一流程继续 prepare_collaboration，仍等待用户确认长期协作方案。自动模式的方案先检查本轮 Hook 注入，相关且足够就直接使用，信息不足或需核对来源/最新状态才主动搜索、读原文；不再每轮机械检索，不重复 append/commit。资料正文归档与对话采集是不同职责，可按已授权范围继续执行。
+- HIL/文本采用同样的自动/按需选项与状态检查。脚本入口为 onboarding.py check_memory `{cwd}`、choose_memory `{mode}`。不把界面降级当成问题提示给用户。
 
 ### 长期协作方式
 
