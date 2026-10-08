@@ -18,6 +18,23 @@ export function createUI({call,send,expand,panel=false}){
   catch{message('选择已保留。当前无法发送，请在对话中说“继续 OpenViking”。');}
  }
  function nav(){return `<nav class="tabs" aria-label="工作台">${[['files','目录'],['progress','工作进展'],['reports','报告与洞察']].map(([id,label])=>`<button data-page="${id}" class="${page===id?'active':''}">${label}</button>`).join('')}</nav>`;}
+ function userTable(){
+  const rows=state.boundUsers||[];
+  return `<section><h2>已绑定的 OpenViking 用户</h2>${rows.length?`<div style="overflow:auto"><table><thead><tr><th>服务展示名</th><th>User ID</th><th>库 ID（如可用）</th><th>当前连接</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.serviceName||r.name)}${rows.filter(x=>(x.serviceName||x.name)===(r.serviceName||r.name)).length>1?`<div class="muted">${esc(r.name)}</div>`:""}</td><td><code>${esc(r.user)}</code><div class="muted">Account: ${esc(r.account)}</div></td><td><code>${esc(r.databaseId||'—')}</code>${r.databaseIdSource==='user'?'<small>（控制台填写）</small>':''}</td><td>${r.active?'当前使用':'已绑定'}</td></tr>`).join('')}</tbody></table></div>`:'<p>尚无绑定。</p>'}<p class="muted">记住你的 User ID。下次直接说“切换 OpenViking user 为 XX”。</p></section>`;
+ }
+ function users(){
+  $('#header-actions').innerHTML='<button data-action="refresh">刷新</button>';
+  main.innerHTML=`<h1>${state.status==='switched'?'用户已切换':'OpenViking 用户'}</h1>${state.message?`<p>${esc(state.message)}</p>`:''}${userTable()}${state.newTaskRequired?'<p>新开一个任务使用该用户；旧任务继续固定原连接。</p>':''}<button data-action="new-binding">新增用户绑定</button>`;
+ }
+ function binding(){
+  const b=state.binding;if(!b||!['setup','install','connection','activate'].includes(b.phase))return false;
+  $('#header-actions').innerHTML='<button data-action="refresh">刷新</button>';
+  if(b.phase==='setup')main.innerHTML='<h1>绑定新的 OpenViking 用户</h1><p>保留已有用户，为新用户重新设置协作方式。</p><div class="choices"><button data-binding-setup="reuse"><strong>使用已安装插件</strong><span>直接继续绑定</span></button><button data-binding-setup="update"><strong>更新插件 App</strong><span>更新后继续绑定</span></button><button data-binding-setup="reinstall"><strong>重新安装插件 App</strong><span>修复安装后继续绑定</span></button></div>';
+  if(b.phase==='install')main.innerHTML='<h1>正在准备插件</h1><p>完成所选安装操作后，继续绑定新用户。</p><button data-action="continue-install">继续</button>';
+  if(b.phase==='activate')main.innerHTML='<h1>新用户绑定已保存</h1><p>无需再次输入 API Key，继续启用该用户。</p><button class="primary" data-action="activate-binding">使用此用户</button>';
+  if(b.phase==='connection')main.innerHTML='<h1>连接新的 OpenViking 用户</h1><p>已有用户保留。验证成功后使用新用户继续设置。</p><label for="binding-key">API Key</label><input id="binding-key" type="password" autocomplete="off" spellcheck="false"><label for="service-name">服务展示名（可选）</label><input id="service-name" maxlength="80" autocomplete="off" placeholder="例如：个人服务、公司研发"><details><summary>指定企业身份（可选）</summary><label for="binding-account">Account ID</label><input id="binding-account"><label for="binding-user">User ID</label><input id="binding-user"><p>留空时由 API Key 自动识别。</p></details><button class="primary" data-action="bind-user">验证并使用新用户</button>';
+  return true;
+ }
  function connect(){
   revision++;$('#header-actions').innerHTML=panel?'':'<button class="quiet" data-action="refresh">刷新</button>';
   const c=state.connection||{};
@@ -25,9 +42,10 @@ export function createUI({call,send,expand,panel=false}){
   if(c.blocked){main.innerHTML=`<h1>连接 OpenViking</h1><p class="muted">${esc(c.message||'请在 Codex 中检查连接配置。')}</p>`;return;}
   if(c.restartRequired){main.innerHTML='<h1>连接已更新</h1><p>新开一个 Codex 任务，发送“继续 OpenViking 接入”。</p>';return;}
   if(c.canReuse&&!keyEntry){main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">检测到此设备已保存的火山连接。</p><div class="actions"><button class="primary" data-action="connect-existing">使用当前连接</button><button data-action="change-key">更换 API Key</button></div>';return;}
-  main.innerHTML=`<h1>${c.hasKey?'更换 API Key':'连接 OpenViking'}</h1><p class="muted">${c.hasKey?'验证成功后，将更新此设备的 OpenViking 连接。':'填入火山控制台中的 API Key。'}</p><form id="connect-form"><label for="api-key">API Key</label><input id="api-key" type="password" autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="粘贴 API Key" required><div class="actions">${c.canReuse?'<button type="button" data-action="cancel-key">返回</button>':''}<button type="button" class="primary" data-action="connect-key">${c.hasKey?'更换并连接':'连接'}</button></div></form>`;
+  main.innerHTML=`<h1>${c.hasKey?'更换 API Key':'连接 OpenViking'}</h1><p class="muted">${c.hasKey?'验证成功后，将更新此设备的 OpenViking 连接。':'填入火山控制台中的 API Key。'}</p><form id="connect-form"><label for="api-key">API Key</label><input id="api-key" type="password" autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="粘贴 API Key" required><details><summary>企业用户（可选）</summary><label for="account-id">Account</label><input id="account-id" autocomplete="off"><label for="user-id">User</label><input id="user-id" autocomplete="off"><p class="muted">留空时由 API Key 自动识别；填写时核对服务端身份。</p></details><div class="actions">${c.canReuse?'<button type="button" data-action="cancel-key">返回</button>':''}<button type="button" class="primary" data-action="connect-key">${c.hasKey?'更换并连接':'连接'}</button></div></form>`;
  }
  function onboarding(){
+  if(binding())return;
   if(!state.connection?.ready||keyEntry){connect();return;}
   revision++;$('#header-actions').innerHTML='<span class="pill">连接已验证</span><button class="quiet" data-action="refresh">刷新</button><button class="quiet" data-action="change-key">更换连接</button>';
   const flow=choosingScope?{...state.onboarding,phase:'scope'}:state.onboarding;
@@ -65,7 +83,7 @@ export function createUI({call,send,expand,panel=false}){
  function workCards(){return (state.workspace?.works||[]).map((w,i)=>`<article class="card"><div class="tag">${esc(w.project||'我的工作')}</div><h2>${esc(w.title)}</h2>${w.goal?`<p>${esc(w.goal)}</p>`:''}<strong>上次停在这里</strong><p>${esc(w.state)}</p>${w.decisions?`<p>已确定：${esc(w.decisions)}</p>`:''}${w.openIssues?`<p>待处理：${esc(w.openIssues)}</p>`:''}<strong>建议下一步</strong><p>${esc(w.next)}</p><p class="muted">${esc(w.coverage||'')}</p><footer>${panel?'':`<button data-work="${i}" class="primary">回顾这项工作</button><button data-correct="${i}">修正总结</button>`}</footer>${sources(w.sources||[])}</article>`).join('');}
  function ready(){
   const f=state.onboarding,skipped=state.scope?.mode==='skip';
-  main.innerHTML=`<h1>${skipped?'从今天开始积累':'接着上次的工作做'}</h1>${skipped?`<div class="stack">${(f.collaboration.summary||[]).map(x=>`<p>${esc(x)}</p>`).join('')}</div><p class="muted">下次可以说“继续上次的工作”，也可以让我整理周报。</p>`:`<div class="cards">${workCards()}</div>`}<p class="muted">${f.memory?.mode==='manual'?'按需使用已开启，需要时让我检索或保存。':f.capabilities?.hooks==='verified'?'对话回流已验证。':'自动回流尚未验证，可先在对话中主动保存和读取。'}</p><div class="actions"><button class="${skipped?'primary':''}" data-next="start">开始一项工作</button><button data-next="save">保存一份资料</button><button data-next="later">稍后</button><button class="quiet" data-action="settings">调整协作方式</button></div>${f.choice==='later'?'<p class="muted">设置已保留，随时可以开始。</p>':''}`;
+  main.innerHTML=`<h1>${skipped?'从今天开始积累':'接着上次的工作做'}</h1>${skipped?`<div class="stack">${(f.collaboration.summary||[]).map(x=>`<p>${esc(x)}</p>`).join('')}</div><p class="muted">下次可以说“继续上次的工作”，也可以让我整理周报。</p>`:`<div class="cards">${workCards()}</div>`}<p class="muted">${f.memory?.mode==='manual'?'按需使用已开启，需要时让我检索或保存。':f.capabilities?.hooks==='verified'?'对话回流已验证。':'自动回流尚未验证，可先在对话中主动保存和读取。'}</p><div class="actions"><button class="${skipped?'primary':''}" data-next="start">开始一项工作</button><button data-next="save">保存一份资料</button><button data-next="later">稍后</button><button class="quiet" data-action="settings">调整协作方式</button></div>${f.choice==='later'?'<p class="muted">设置已保留，随时可以开始。</p>':''}${userTable()}`;
  }
  function sources(items){return items.map(s=>`<button class="source" data-file="${esc(s.uri)}">↗ ${esc(s.label)}</button>`).join('');}
  function workspace(){
@@ -88,7 +106,7 @@ export function createUI({call,send,expand,panel=false}){
   if(page!=='files'||!$('#explorer')){page='files';await directory();}
   await explorer.open(target);
  }
- async function refresh(view){const result=await call('get_state',{});state={...state,...result,view:view||state.view};if(state.view==='onboarding')onboarding();else workspace();schedulePoll();}
+ async function refresh(view){const result=await call(state.view==='users'?'list_bound_users':'get_state',{});state={...state,...result,view:view||state.view};if(state.view==='users')users();else if(state.view==='onboarding')onboarding();else workspace();schedulePoll();}
  function schedulePoll(){
   clearTimeout(pollTimer);
   if(panel||summaryCard||keyEntry||choosingScope||!state.connection?.ready||pollCount>=16)return;
@@ -119,6 +137,16 @@ export function createUI({call,send,expand,panel=false}){
   if(d.more){run(()=>read(d.more,Number(d.offset)));return;}
   if(d.report!==undefined){const r=state.reports[Number(d.report)];main.innerHTML=nav()+`<h1>${esc(r.title)}</h1><p class="muted">${esc(r.period)} · ${esc(r.coverage)}</p><article class="report-body">${esc(r.body)}</article><hr>${sources(r.sources)}`;return;}
   run(async()=>{
+   if(d.action==='new-binding'){state={...await call('begin_user_binding',{}),view:'onboarding'};onboarding();return;}
+   if(d.bindingSetup){state={...state,...await call('choose_binding_setup',{revision:state.binding.revision,mode:d.bindingSetup})};onboarding();if(d.bindingSetup!=='reuse')await notify(`使用 openviking-codex-app，已选择${d.bindingSetup==='update'?'更新':'重新安装'}插件 App。保留所有连接配置，完成实际安装并修复连接隔离组件后，调用 complete_binding_setup(revision=${state.binding.revision}) 继续绑定。不要覆盖 Key 或替我批准 Hooks。`);return;}
+   if(d.action==='continue-install'){await notify(`使用 openviking-codex-app，继续已选择的插件安装操作，完成后 complete_binding_setup(revision=${state.binding.revision})。`);return;}
+   if(d.action==='bind-user'||d.action==='activate-binding'){
+    let args={revision:state.binding.revision};
+    if(d.action==='bind-user'){args={...args,api_key:$('#binding-key').value.trim(),service_name:$('#service-name').value.trim()||undefined,account:$('#binding-account').value.trim()||undefined,user:$('#binding-user').value.trim()||undefined};if(!args.api_key)throw Error('请填写 API Key。');$('#binding-key').value='';}
+    try{state={...state,...await call(d.action==='bind-user'?'bind_user':'activate_user_binding',args)};onboarding();await notify('OpenViking 新用户已绑定并启用。新任务加载该用户后，继续完整 onboarding：记忆方式、协作规则、历史范围、接续摘要；完成时展示所有绑定的 User ID、库 ID 和当前连接。旧任务不要继续向新库读写。');}
+    catch(e){const text=e.message;state={...state,...await call('get_state',{})};onboarding();throw Error(text);}
+    return;
+   }
    if(d.memory){state={...state,...await call('choose_memory',{mode:d.memory})};onboarding();if(state.onboarding.memory.ready)await notify('使用 openviking-codex-app，按已选记忆方式准备长期协作方案；自动记忆优先使用 Hook 召回，不足时才补查，不重复提交对话。');}
    if(d.action==='check-memory'&&!state.onboarding.memory?.check?.status){await notify('使用 openviking-codex-app，用实际项目 cwd 调用 check_memory，再展示记忆方式。');return;}
    if(d.action==='check-memory'){state={...state,...await call('check_memory',{})};onboarding();if(state.onboarding.memory.ready)await notify('使用 openviking-codex-app，记忆设置已核对，按已选方式 prepare_collaboration 展示长期协作方案，等待我确认。');else if(state.onboarding.memory.check.status==='unknown')await notify('使用 openviking-codex-app，用实际项目 cwd 调用 check_memory，核对官方插件与 Hooks 后继续接入。');}
@@ -135,7 +163,7 @@ export function createUI({call,send,expand,panel=false}){
    if(d.action==='cancel-key'){keyEntry=false;if(state.view==='onboarding')onboarding();else workspace();return;}
    if(d.action==='connect-existing'||d.action==='connect-key'){
     const args={revision:state.connection.revision};
-    if(d.action==='connect-key'){args.api_key=$('#api-key').value.trim();if(!args.api_key)throw Error('请填写 API Key。');$('#api-key').value='';}
+    if(d.action==='connect-key'){args.api_key=$('#api-key').value.trim();args.account=$('#account-id')?.value.trim()||undefined;args.user=$('#user-id')?.value.trim()||undefined;if(!args.api_key)throw Error('请填写 API Key。');$('#api-key').value='';}
     message('正在验证连接…');
     const result=await call(d.action==='connect-key'?'connect_key':'connect_existing',args);
     state={...state,...result};keyEntry=false;choosingScope=entryConnection&&state.connection?.ready&&state.onboarding?.collaboration?.status==='active';entryConnection=false;message('');if(state.view==='onboarding')onboarding();else workspace();
@@ -159,5 +187,5 @@ export function createUI({call,send,expand,panel=false}){
    if(d.action==='expand'){if(expand)await expand();}
   });
  });
- return {render(value){message('');scopeMode=null;choosingScope=false;entryConnection=value.entry==='connection';summaryCard=value.view==='onboarding'&&value.onboarding?.phase==='ready';pollCount=0;pollGeneration++;state={...state,...value};if(value.view==='onboarding')onboarding();else workspace();schedulePoll();},error:message,fail(text){clearTimeout(pollTimer);pollGeneration++;revision++;$('#header-actions').innerHTML='';message('');main.innerHTML=`<h1>卡片暂时无法显示</h1><p class="muted">${esc(text)}</p><button data-action="reload">重新加载</button>`;}};
+ return {render(value){message('');scopeMode=null;choosingScope=false;entryConnection=value.entry==='connection';summaryCard=value.view==='onboarding'&&value.onboarding?.phase==='ready';pollCount=0;pollGeneration++;state={...state,...value};if(value.view==='users')users();else if(value.view==='onboarding')onboarding();else workspace();schedulePoll();},error:message,fail(text){clearTimeout(pollTimer);pollGeneration++;revision++;$('#header-actions').innerHTML='';message('');main.innerHTML=`<h1>卡片暂时无法显示</h1><p class="muted">${esc(text)}</p><button data-action="reload">重新加载</button>`;}};
 }

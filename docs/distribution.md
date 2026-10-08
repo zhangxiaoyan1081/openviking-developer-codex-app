@@ -14,6 +14,8 @@
 
 ## 分发路径
 
+自 v0.2.5 起，每次完成的更新提升版本号并创建独立 [GitHub Release](https://github.com/zhangxiaoyan1081/openviking-developer-codex-app/releases)。推送 `main` 后，自动验收通过才发布，附件提供含构建资源的安装 ZIP 与 SHA-256 校验文件。已发布标签和附件不覆盖；维护规则见 [AGENTS.md](../AGENTS.md)。
+
 | 阶段 | 建议路径 | 当前条件与缺口 |
 |---|---|---|
 | 团队小范围试用 | 公开 GitHub 安装指令；ZIP 可选 | 当前可用；每人配置自己的 Key，桌面安装后在新任务加载 |

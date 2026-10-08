@@ -55,6 +55,8 @@ def check_memory(value):
         raise ValueError('请先由 Codex 检查当前项目的记忆设置。')
     try:
         check = hook_setup.inspect(cwd)
+    except hook_setup.HostError as error:
+        check = {'status':'unknown','automaticReady':False,'manualReady':False,'message':str(error)}
     except (OSError,ValueError,RuntimeError,hook_setup.queue.Empty,hook_setup.subprocess.SubprocessError):
         check = {'status':'unknown','automaticReady':False,'manualReady':False,'message':'暂时无法核对，请让 Codex 检查官方插件。'}
     if record.get('connectionReview') != connection_review():

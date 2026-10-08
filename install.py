@@ -25,7 +25,7 @@ def stage_companion(dest):
    except FileExistsError:pass
  node=shutil.which('node')
  if not node:raise RuntimeError('请先安装 Node.js 22 或以上。')
- config={'mcpServers':{'openviking-codex-app':{'command':str(Path(node).absolute()),'args':[str(runtime/'scripts/app_server.mjs')],'cwd':str(runtime),'env':{'OV_APP_PYTHON':sys.executable,'OV_APP_CODEX':shutil.which('codex') or 'codex'}}}}
+ config={'mcpServers':{'openviking-codex-app':{'command':str(Path(node).absolute()),'args':[str(runtime/'scripts/app_server.mjs')],'cwd':str(runtime),'env':{'OV_APP_PYTHON':sys.executable,'OV_APP_CODEX':os.environ.get('OV_APP_CODEX') or 'codex'}}}}
  (dest/'plugins/openviking-codex-app/.mcp.json').write_text(json.dumps(config,ensure_ascii=False,indent=2)+'\n')
  return runtime
 
@@ -40,7 +40,8 @@ def main():
  existing=hook_setup.official_plugins(installed)
  if a.plan:print(json.dumps({'official':None if a.companion_only or existing else commands(lock),'officialAction':'reuse' if existing else 'skip' if a.companion_only else 'install','commit':lock['commit'],'endpoint':cloud.ENDPOINT,'companion':'openviking-codex-app@ov-personal-cloud'},ensure_ascii=False));return
  if sys.version_info<(3,10):raise RuntimeError('需要 Python 3.10 或以上。')
- for cmd in ('node','codex','git'):
+ codex=hook_setup.codex()
+ for cmd in ('node','git'):
   if not shutil.which(cmd):raise RuntimeError('请先安装 '+cmd+'。')
  if int(subprocess.check_output(['node','--version'],text=True).strip().lstrip('v').split('.')[0])<22:raise RuntimeError('需要 Node.js 22 或以上。')
  if a.configure_stdin:
@@ -48,7 +49,7 @@ def main():
   if not isinstance(key,str) or not key.strip() or key.startswith('{{') or key in ('<API-Key>','mock') or any(c in key for c in '\r\n'):raise RuntimeError('请提供有效 API Key。')
   old,revision=connection.snapshot()
   if old.get('api_key') and (old.get('api_key')!=key or old.get('url')!=cloud.ENDPOINT) and not a.replace_connection:raise RuntimeError('已有其他连接。确认切换后使用 --replace-connection。')
-  connection.select(revision=revision,api_key=key,source='console')
+  connection.select(revision=revision,api_key=key,source='console',account=data.get('account'),user=data.get('user'))
  if not a.companion_only and not existing:
   cloud.credentials()
   if not a.configure_stdin:connection.verify(cloud.credentials())
@@ -57,7 +58,7 @@ def main():
   if hashlib.sha256(raw).hexdigest()!=lock['installerSha256']:raise RuntimeError('官方安装文件校验失败。')
   with tempfile.TemporaryDirectory() as tmp:
    script=Path(tmp)/'install.sh';script.write_bytes(raw)
-   env={**os.environ,'OPENVIKING_REPO_REF':lock['commit'],'OPENVIKING_REPO_URL':lock['repository']}
+   env={**os.environ,'OPENVIKING_REPO_REF':lock['commit'],'OPENVIKING_REPO_URL':lock['repository'],'PATH':str(Path(codex).parent)+os.pathsep+os.environ.get('PATH','')}
    cmd=commands(lock);cmd[1]=str(script);subprocess.run(cmd,env=env,check=True)
   # Only a fresh install is normalized; never overwrite an existing plugin or its trust.
   hook_setup.pin_new_install(hook_setup.installed_plugins(),shutil.which('node'))
@@ -70,9 +71,11 @@ def main():
  dest=Path.home()/'.local/share/ov-personal/marketplace';dest.mkdir(parents=True,exist_ok=True)
  for name in ('plugins','.agents'):shutil.copytree(ROOT/name,dest/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
  stage_companion(dest)
- subprocess.run(['codex','plugin','marketplace','add',str(dest)],check=True)
- subprocess.run(['codex','plugin','add','openviking-codex-app@ov-personal-cloud'],check=True)
- if legacy_installed:subprocess.run(['codex','plugin','remove','ov-personal@ov-personal-cloud'],check=True)
+ subprocess.run([codex,'plugin','marketplace','add',str(dest)],check=True)
+ subprocess.run([codex,'plugin','add','openviking-codex-app@ov-personal-cloud'],check=True)
+ if legacy_installed:subprocess.run([codex,'plugin','remove','ov-personal@ov-personal-cloud'],check=True)
+ # Refresh the opt-in switcher's copy too, without reinstalling its wrappers.
+ subprocess.run([sys.executable,str(ROOT/'scripts/install-switcher.py'),'--host-only'],check=True)
  print('安装完成。请在 Codex 中加载插件，继续接入。')
 if __name__=='__main__':
  try:main()

@@ -1,6 +1,9 @@
 """Read-only fresh Codex app-server probe. No model turn or UI interaction."""
-import subprocess,json,threading,queue,time
-p=subprocess.Popen(['codex','app-server','--stdio'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+import subprocess,json,threading,queue,time,sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/openviking-codex-app/scripts'))
+from hook_setup import codex
+p=subprocess.Popen([codex(),'app-server','--stdio'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
 q=queue.Queue()
 def reader():
  for line in p.stdout:

@@ -12,8 +12,8 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
  const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/openviking-codex-app/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
  try{
   await client.connect(transport);
-  const {tools}=await client.listTools();assert.equal(tools.length,22);
-  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['prepare_collaboration','publish_report','publish_work','review_import','show_onboarding']);
+  const {tools}=await client.listTools();assert.equal(tools.length,30);
+  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['activate_user_binding','begin_user_binding','complete_binding_setup','list_bound_users','prepare_collaboration','publish_report','publish_work','review_import','set_user_database','show_onboarding','switch_user']);
   for(const name of ['get_state','open_workspace_panel','show_workspace'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
   const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
   assert.deepEqual(tools.find(x=>x.name==='confirm_import')._meta.ui.visibility,['app']);

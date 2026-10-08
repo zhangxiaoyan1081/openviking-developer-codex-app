@@ -15,7 +15,7 @@ class HookSetupTests(unittest.TestCase):
    if 'features' in args:return 'hooks stable '+str(feature).lower()
    return json.dumps({'autoRecall':flags,'autoCapture':flags})
   with patch.object(hook_setup,'installed_plugins',return_value={'installed':[plugin]}),patch.object(hook_setup,'cache_root',return_value=root),patch.object(hook_setup,'host_hooks',return_value=host),patch.object(hook_setup.subprocess,'run'),patch.object(hook_setup.subprocess,'check_output',side_effect=output):
-   return hook_setup.inspect(str(self.root))
+   with patch.object(hook_setup,'codex',return_value='/test/codex'):return hook_setup.inspect(str(self.root))
  def test_trust_and_enablement_and_runtime_are_all_required(self):
   self.assertTrue(self.inspect()['automaticReady'])
   for status in ['untrusted','modified']:

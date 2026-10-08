@@ -2,17 +2,26 @@
 import json,sys,re
 from pathlib import Path
 from datetime import datetime,timezone
-import cloud,history,panel,connection,onboarding,workspace,session_progress
+import cloud,history,panel,connection,onboarding,workspace,session_progress,bindings,profiles
 
 def state():
  c=connection.status()
- empty={'configured':c['canReuse'],'connection':c,'scope':None,'plan':None,'reports':[],'workspace':{'works':[]}}
+ empty={'configured':c['canReuse'],'connection':c,'scope':None,'plan':None,'reports':[],'workspace':{'works':[]},'boundUsers':profiles.rows(),'binding':bindings.public()}
  if not c['ready']:return empty
  flow=onboarding.state()
- return {**empty,'scope':cloud.load('scope.json') if flow['scopeCurrent'] else None,'plan':cloud.load('review.json') if flow['scopeCurrent'] else None,'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':flow}
+ return {**empty,'scope':cloud.load('scope.json') if flow['scopeCurrent'] else None,'plan':cloud.load('review.json') if flow['scopeCurrent'] else None,'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':flow,'binding':bindings.finish_if_ready(flow)}
 
 def dispatch(action,value):
  if action=='state':return state()
+ if action=='begin_binding':bindings.begin();return state()
+ if action=='binding_setup':bindings.choose_setup(value['revision'],value['mode']);return state()
+ if action=='binding_setup_done':bindings.complete_setup(value['revision']);return state()
+ if action=='bind_user':bindings.bind(value['revision'],value['api_key'],None,value.get('account'),value.get('user'),value.get('service_name'));return state()
+ if action=='activate_binding':bindings.activate(value['revision']);return state()
+ if action=='bound_users':return {'boundUsers':profiles.rows()}
+ if action=='user_database':return {'boundUsers':bindings.set_database(value['name'],value['database_id'])}
+ if action=='switch_user':return {**bindings.switch_user(value['user_id'],value.get('database_id'),value.get('service_name'),value.get('profile_name')),'boundUsers':profiles.rows()}
+
  if action=='onboarding_view':
   if value.get('step')=='connection':
    c=connection.status()
@@ -21,7 +30,7 @@ def dispatch(action,value):
  if action=='connect_existing':
   connection.select(revision=value['revision']);return state()
  if action=='connect_key':
-  connection.select(revision=value['revision'],api_key=value['api_key']);return state()
+  connection.select(revision=value['revision'],api_key=value['api_key'],account=value.get('account'),user=value.get('user'));return state()
  connection.require_ready()
  if action=='session_progress':return session_progress.page(value)
  if action=='session_detail':return session_progress.detail(value)

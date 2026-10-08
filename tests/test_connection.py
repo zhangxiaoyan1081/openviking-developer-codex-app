@@ -8,7 +8,7 @@ class ConnectionTests(unittest.TestCase):
  tearDown=fixtures.PersonalTests.tearDown
  def unapproved(self):
   (cloud.folder()/'connection.json').unlink(missing_ok=True)
- def response(self):return [{'result':{'tools':[]}},{'result':{'content':[{'type':'text','text':''}]}}]
+ def response(self):return [{'account_id':'default','user_id':'default','role':'admin'},{'result':{'tools':[]}},{'result':{'content':[{'type':'text','text':''}]}}]
  def test_existing_connection_is_not_implicit_consent(self):
   self.unapproved();s=app_backend.state()
   self.assertTrue(s['connection']['canReuse']);self.assertFalse(s['connection']['ready'])
@@ -19,7 +19,7 @@ class ConnectionTests(unittest.TestCase):
   self.unapproved();before=cloud.CONFIG.read_bytes()
   with patch.object(cloud,'request',side_effect=self.response()) as request:
    s=app_backend.dispatch('connect_existing',{'revision':connection.snapshot()[1]})
-  self.assertTrue(s['connection']['ready']);self.assertEqual(request.call_count,2)
+  self.assertTrue(s['connection']['ready']);self.assertEqual(request.call_count,3)
   self.assertEqual(before,cloud.CONFIG.read_bytes());self.assertNotIn('test-only',json.dumps(s))
  def test_bad_key_preserves_old_config_and_confirmation(self):
   before=cloud.CONFIG.read_bytes();oldmark=cloud.load('connection.json')
@@ -46,7 +46,7 @@ class ConnectionTests(unittest.TestCase):
    request.assert_not_called()
  def test_key_is_not_saved_when_personal_access_fails(self):
   before=cloud.CONFIG.read_bytes()
-  with patch.object(cloud,'request',side_effect=[{'result':{'tools':[]}},{'result':{'isError':True,'content':[]}}]):
+  with patch.object(cloud,'request',side_effect=[{'account_id':'default','user_id':'default','role':'admin'},{'result':{'tools':[]}},{'result':{'isError':True,'content':[]}}]):
    with self.assertRaises(cloud.CloudError):connection.select(revision=connection.snapshot()[1],api_key='no-access-key')
   self.assertEqual(before,cloud.CONFIG.read_bytes())
  def test_external_switch_requires_running_proxy_reload(self):

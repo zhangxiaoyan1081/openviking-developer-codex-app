@@ -22,6 +22,9 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
     if(name==='select_scope'){v={...window.fixture,scope:a};if(v.onboarding)v.onboarding={...v.onboarding,phase:a.mode==='skip'?'ready':'prepare',choice:null};window.fixture=v;}
     if(name==='confirm_import')v={plan:{hash:a.hash,confirmed:true}};
     if(name==='get_state')v=window.fixture;
+    if(name==='choose_binding_setup'){v={...window.fixture,binding:{...window.fixture.binding,phase:a.mode==='reuse'?'connection':'install',setup:a.mode}};window.fixture=v;}
+    if(name==='bind_user'){v={...window.fixture,binding:{...window.fixture.binding,phase:'onboarding'},connection:{...window.fixture.connection,ready:false,restartRequired:true}};window.fixture=v;}
+
     if(name==='choose_collaboration'){v={...window.fixture,onboarding:{...window.fixture.onboarding,collaboration:{...window.fixture.onboarding.collaboration,status:a.choice==='adopt'?(window.fixture.onboarding.collaboration.mode==='reuse'?'active':'accepted'):'adjusting'}}};if(v.onboarding.collaboration.status==='active')v.onboarding.phase='scope';window.fixture=v;}
     if(name==='choose_next'){v={...window.fixture,onboarding:{...window.fixture.onboarding,choice:a.choice}};window.fixture=v;}
     if(name==='import_status')v=window.fixture;
@@ -75,8 +78,13 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.getByRole('button',{name:'更换 API Key',exact:true}).click();
  await page.screenshot({path:'.local/acceptance/screenshots/api-key-card.png'});
  await frame.getByLabel('API Key',{exact:true}).fill('valid-test-key');await page.evaluate(()=>window.rejectKey=false);
+ await frame.locator('summary').filter({hasText:'企业用户'}).click();
+ await frame.getByLabel('Account',{exact:true}).fill('enterprise');
+ await frame.getByLabel('User',{exact:true}).fill('alice');
  await frame.getByRole('button',{name:'更换并连接',exact:true}).click();
  await frame.getByText('连接已更新',{exact:true}).waitFor();
+ const enterpriseRequest=await page.evaluate(()=>requests.filter(r=>r.name==='connect_key').at(-1));
+ assert.equal(enterpriseRequest.arguments.account,'enterprise');assert.equal(enterpriseRequest.arguments.user,'alice');
  assert.equal(await frame.getByText('带上过去的工作',{exact:true}).count(),0);
  // Collaboration adoption hands off a concrete revision; skip still displays expectations.
  await page.evaluate(()=>window.rejectMessage=false);
@@ -142,5 +150,27 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await page.evaluate(()=>{window.suppressResult=true;document.querySelector('iframe').contentWindow.location.reload();});
  await frame.getByText('加载超时，请重试。').waitFor({timeout:18000});
  await render(fixture);await frame.getByText('带上过去的工作',{exact:true}).waitFor();
+ // New binding is a conversation card, preserving old users without exposing keys.
+ await render({...fixture,binding:{phase:'setup',revision:'bind-test'},boundUsers:[{name:'current',user:'default',account:'default',databaseId:'db-old',active:true}]});
+ await frame.getByRole('button',{name:'使用已安装插件',exact:false}).waitFor();
+ await frame.getByRole('button',{name:'更新插件 App',exact:false}).waitFor();
+ await frame.getByRole('button',{name:'重新安装插件 App',exact:false}).waitFor();
+ await frame.getByRole('button',{name:'使用已安装插件',exact:false}).click();
+ await frame.getByRole('heading',{name:'连接新的 OpenViking 用户'}).waitFor();
+ await frame.getByLabel('API Key',{exact:true}).fill('new-binding-secret');
+ assert.equal(await frame.locator('#database-id').count(),0);
+ await frame.getByLabel('服务展示名（可选）',{exact:true}).fill('公司研发');
+ await frame.getByRole('button',{name:'验证并使用新用户'}).click();
+ await frame.getByRole('heading',{name:'连接已更新'}).waitFor();
+ const bindRequest=await page.evaluate(()=>requests.filter(r=>r.name==='bind_user').at(-1));
+ assert.equal(bindRequest.arguments.service_name,'公司研发');
+ assert.equal(bindRequest.arguments.database_id,undefined);
+ assert.ok(!(await page.evaluate(()=>messages)).some(m=>JSON.stringify(m).includes('new-binding-secret')));
+ await render({view:'users',status:'switched',newTaskRequired:true,boundUsers:[{name:'current',user:'default',account:'default',databaseId:'db-old',active:false},{name:'enterprise',user:'alice',account:'team',databaseId:'db-new',active:true}]});
+ await frame.getByRole('heading',{name:'用户已切换'}).waitFor();
+ await frame.locator('table').getByText('alice',{exact:true}).waitFor();
+ await frame.locator('table').getByText('db-new',{exact:true}).waitFor();
+ await frame.locator('table').getByText('当前使用',{exact:true}).waitFor();
+ assert.equal(await frame.getByText('new-binding-secret').count(),0);
  assert.deepEqual(errors,[]);console.log('App bridge: scope, confirmation, report request, directory preview, XSS escaping, rejected message, mobile, missing result, reload and timeout recovery, existing connection consent, key input, auth failure and key switch passed.');
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

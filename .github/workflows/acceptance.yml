@@ -23,3 +23,53 @@ jobs:
           name: simulated-host-screenshots
           path: .local/acceptance/screenshots
           include-hidden-files: true
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: isolated-flow
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: plugin-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release version and notes
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          package = json.loads(Path('package.json').read_text())
+          lock = json.loads(Path('package-lock.json').read_text())
+          plugin = json.loads(Path('plugins/openviking-codex-app/.codex-plugin/plugin.json').read_text())
+          version = package['version']
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Use a stable semantic version'
+          assert version == lock['version'] == lock['packages']['']['version'] == plugin['version'], 'Version mismatch'
+          assert Path(f'docs/releases/v{version}.md').is_file(), 'Release notes missing'
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'RELEASE_TAG=v{version}\n')
+          PY
+      - name: Publish immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$GITHUB_SHA" || {
+              echo 'This version is already tagged at another commit. Bump the version.'
+              exit 1
+            }
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Release already exists for this commit; preserving its assets.'
+            exit 0
+          fi
+          mkdir -p /tmp/ov-release
+          filename="openviking-codex-app-$RELEASE_TAG.zip"
+          git archive --format=zip --prefix="openviking-codex-app-$RELEASE_TAG/" -o "/tmp/ov-release/$filename" HEAD
+          (cd /tmp/ov-release && sha256sum "$filename" > SHA256SUMS)
+          gh release create "$RELEASE_TAG" "/tmp/ov-release/$filename" /tmp/ov-release/SHA256SUMS \
+            --target "$GITHUB_SHA" --title "OpenViking Codex App $RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md" --latest

@@ -31,3 +31,15 @@ python3 install.py --companion-only
 控制台如果已为用户提供 API Key，应生成 [完整接入指令](console-connect.md)，让安装器通过 stdin 直接配置，无需重复输入。不要把任何真实 Key 写进公开仓库或通用分发指令。
 
 更新 App 不会重装已存在的官方插件。`--official-only` 只在官方插件缺失时安装，已有安装仍复用；官方升级请单独执行，升级后重新核对 Node 启动路径与 Hook 信任。
+
+## Codex 更新后无法启用用户绑定
+
+0.2.5 起，App 在运行时查找有效的 Codex 程序，兼容桌面更新后的路径迁移及最小 PATH。更新已有安装时，在已取得修复版源码的目录执行：
+
+```bash
+python3 install.py --companion-only
+```
+
+这也会刷新已安装切换器的路径发现代码，保留当前用户、已保存绑定和官方 Hooks。无需重新输入已验证保存的 Key。更新后新开任务继续绑定；宿主仍复用旧进程时，退出并重新打开 Codex。
+
+若找不到可运行的 Codex，请安装/更新 Codex，或由维护人员通过 `OV_APP_CODEX` 指定一个有效的可执行文件。不要把 API Key 错误与本机检查失败混为一谈。详细说明见 [路径兼容修复](codex-runtime-compatibility.md)。

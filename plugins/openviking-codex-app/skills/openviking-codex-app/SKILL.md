@@ -2,13 +2,15 @@
 name: openviking-codex-app
 description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、从多个 Session 的 Working Memory 恢复进展，并打开个人工作台。用户请求接入、同步已有工作、更新工作台或继续已有工作时使用。
 ---
-# OpenViking 个人版
+# OpenViking 个人版与企业用户
 
-入口是用户将火山控制台的接入指令粘贴到 Codex。先完成已授权安装与连接，再选择上下文范围；不是让用户从下载 ZIP 和填写第二次 key 开始。只支持火山商业化服务。不要安装本地 OV 服务或引导模型部署。不要采集 Computer History。
+入口是用户将火山控制台的接入指令粘贴到 Codex。先完成已授权安装与连接，再选择上下文范围；不是让用户从下载 ZIP 和填写第二次 key 开始。支持火山商业化个人版与企业版用户，连接身份以 /health 返回的 account_id/user_id 为准。只支持火山商业化服务。不要安装本地 OV 服务或引导模型部署。不要采集 Computer History。
 
 本插件没有记忆 Hook。记忆回流、召回与凭据由独立安装的官方 openviking-memory 插件管理。不要启用旧 ov-visualizer 的内置采集，遇到旧采集正在运行时说明冲突、协助用户明确切换，不同时双写。
 
 ## 接入与首次使用
+
+用户要求新增 user 绑定或切换 user 时，优先执行文末“多用户绑定与切换”，不要走覆盖 Key 的旧入口。
 
 1. 指令已包含 API Key 时，用 install.py --configure-stdin 验证并配置，不重复索取。安装器会在验证鉴权及个人目录可读之后记录本次连接确认。已有不同连接时说明切换会影响此设备的官方记忆插件；用户已明确要求切换才使用 --replace-connection。Key 不写进仓库、计划、报告或输出。
 2. 指令没有 Key 时，不自动复用本机旧连接，不先读取旧库资料。必要时用 install.py --companion-only 安装交互插件（无需先有 Key），然后必须调用 show_onboarding(step="connection")，即使以前验证过也展示本次连接选择，不先用 get_state 的 ready 跳过这个入口。用户明确说“继续接入”时才使用默认 current 恢复进度。卡片检测到旧连接时给“使用当前连接 / 更换 API Key”；没有连接时直接给 Key 输入框。不要在聊天中重复询问卡片已经收集的选择。
@@ -103,3 +105,14 @@ history.py collect <计划文件> 读取每个所选 Session 的最新可用概�
 ## 界面文案
 
 只写用户下一步所需内容，短句、明确动作。实现细节、测试缺口、抽取契约写在研发文档和必要故障说明，不放空状态或常规引导里。
+
+## 多用户绑定与切换（对话内流程）
+
+- 用户说“帮我加一个新的 OpenViking user 绑定”等新增绑定意图时，调用 `begin_user_binding`，保留已有配置，不使用旧 connect_key 替换当前 Key，不再引导终端切换器。卡片先让用户选择“使用已安装插件 / 更新插件 App / 重新安装插件 App”。
+- 选择复用直接展示新用户 Key 与可选服务展示名输入；选择更新/重装时，先完成已授权的 App 安装（复用已有官方插件），再运行源码 `scripts/install-switcher.py` 更新连接隔离组件，实际安装成功后调用 `complete_binding_setup(revision)`。此调用只是核查，不替代安装动作。新运行版本需加载时明确提示一次重载，不要求重复输入 Key。
+- Key 通过卡片密码框传入 `bind_user`（仅 App 可调用），不进聊天、参数日志或报告。不要求用户提供库 ID；仅在服务端返回时记录，拿不到则留空，不将 Account ID 当库 ID。允许设置可选服务展示名来区分连接，留空使用自动生成的连接名。User ID 与 Account ID 以验证后的服务端身份为准。
+- 新绑定验证后保存并启用新用户，旧配置保留。返回连接重载提示后停止旧任务的库读写，新任务加载目标用户，再完整执行记忆方式与 Hooks → 协作规则 → 历史范围 → 摘要或使用预期。绑定阶段为 activate 时通过 `activate_user_binding` 继续，不重新索要 Key。新增流程不是完成 Key 验证就结束。
+- 完成时调用 `list_bound_users`，展示全部已绑定服务展示名、User ID、Account、当前连接及服务端已返回的库 ID，并提示“记住 User ID，下次说：切换 OpenViking user 为 XX”。界面完成页也展示同一列表。库 ID 缺失不影响绑定或切换，不要求用户补填。
+- 用户说“切换 OpenViking user 为 XX”时直接调用 `switch_user(user_id=XX)`。用户指定服务展示名时传 service_name；多个匹配时请用户按展示名选择连接，重名时使用返回的 name 传 profile_name 精确匹配，未绑定则引导新增。工具已执行切换后不要再次问是否确认，也不默认重走历史导入；新任务加载该连接已保存的状态，未完成 onboarding 的继续完成。
+- 官方 MCP 进程固定启动时连接，Hook 按绑定与任务归属隔离。第一次安装 MCP 隔离组件后必须重启 Codex 一次，工具会检查升级前进程是否退出。此后对话切换更新默认连接，旧任务保留原 MCP，目标用户在新任务加载；若宿主仍复用旧 MCP 才重启。不把“默认连接切换”说成所有已有任务立即切到新库。
+- 不迁移或自动补传历史，跨连接不复用带旧内容的任务/fork；非 default 用户需核对其资料归档授权。不要修改 trusted_hash 或代替用户批准 Hooks。终端 ov-user 仅保留为故障恢复入口，不作为日常交互路径。

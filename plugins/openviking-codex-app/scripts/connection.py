@@ -30,12 +30,22 @@ def require_ready():
  if not status().get('ready'):raise cloud.CloudError('请先完成连接确认。')
 
 def verify(candidate):
+ identity=cloud.request('/health',config=candidate,timeout=15)
+ account,user=identity.get('account_id'),identity.get('user_id')
+ if not account or not user or identity.get('role')=='root':raise cloud.CloudError('无法确认用户身份，请使用可访问用户空间的 Key。')
+ for field,actual in (('account',account),('user',user)):
+  expected=candidate.get(field) or candidate.get(field+'_id')
+  if expected and expected!=actual:raise cloud.CloudError('服务端身份与指定 Account / User 不一致，原连接已保留。')
+  if actual!='default' or expected:
+   candidate[field]=actual;candidate.pop(field+'_id',None)
+ cloud.validate_credentials(candidate)
  listing=cloud.request('/mcp',{'jsonrpc':'2.0','id':1,'method':'tools/list'},config=candidate,timeout=15)
  if not isinstance(listing.get('result',{}).get('tools'),list):raise cloud.CloudError('无法验证连接，请稍后重试。')
- result=cloud.request('/mcp',{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'list','arguments':{'uri':'viking://user/default/resources'}}},config=candidate,timeout=15).get('result',{})
- if result.get('isError') or not isinstance(result.get('content'),list):raise cloud.CloudError('当前 Key 无法读取个人空间，请核对后重试。')
+ result=cloud.request('/mcp',{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'list','arguments':{'uri':cloud.user_root(candidate)+'/resources'}}},config=candidate,timeout=15).get('result',{})
+ if result.get('isError') or not isinstance(result.get('content'),list):raise cloud.CloudError('当前 Key 无法读取用户空间，请核对后重试。')
+ return identity
 
-def select(*,revision,api_key=None,source='card'):
+def select(*,revision,api_key=None,source='card',account=None,user=None):
  cloud.check_environment()
  cloud.ROOT.mkdir(parents=True,exist_ok=True,mode=0o700)
  with open(cloud.ROOT/'connection.lock','a') as lock:
@@ -48,10 +58,17 @@ def select(*,revision,api_key=None,source='card'):
    candidate={**old,'url':cloud.ENDPOINT,'api_key':api_key}
    if old.get('api_key')!=api_key or old.get('url','').rstrip('/')!=cloud.ENDPOINT:
     for field in ('account','account_id','user','user_id','peer_id'):candidate.pop(field,None)
+  for field,value in (('account',account),('user',user)):
+   if value is not None:
+    candidate.pop(field+'_id',None)
+    if value:candidate[field]=value
+    else:candidate.pop(field,None)
+  candidate=dict(candidate)
   cloud.validate_credentials(candidate)
   verify(candidate)
   if snapshot()[1]!=current:raise cloud.CloudError('连接已变化，请刷新卡片后重试。')
   changed=candidate!=old
+  if changed and (cloud.CONFIG.parent/'connections/active.json').exists():raise cloud.CloudError('已启用多连接管理，请使用本机 OpenViking 切换器添加或切换连接。')
   if changed:cloud.atomic(cloud.CONFIG,candidate)
   # A repeated click must not clear a pending restart for this same runtime.
   previous=cloud.load('connection.json',{})

@@ -30,6 +30,8 @@ python3 install.py --companion-only
 
 更新 App 默认保留已安装的官方插件、Node 启动路径和信任设置；官方插件独立升级。首次安装才使用仓库锁定版本并配置 Node 绝对路径，避免桌面环境找不到 Node。
 
+0.2.5 支持 Codex 更新后的程序路径自动发现。已保存用户绑定因本机检查失败而无法启用时，更新 App 后可继续，无需重新提交 Key。见 [更新与排查](docs/install.md#codex-更新后无法启用用户绑定)。
+
 这个命令安装交互插件；后续接入流程会检查并按需安装官方 `openviking-memory`，分别验证连接与记忆能力。分发包包含打包后的界面，使用者无需执行 `npm install`。
 
 如果你已从火山控制台复制了含 API Key 的接入指令，直接交给 Codex 即可，无需再次填写 Key。控制台集成见 [接入指令模板](docs/console-connect.md)。

@@ -4,12 +4,50 @@ from pathlib import Path
 import cloud
 
 OFFICIAL = 'openviking-memory@openviking'
+HOST_TIMEOUT = 20
+
+class HostError(cloud.CloudError):
+    """Safe, actionable local-host error; never includes subprocess output."""
+
+def bundle_candidates(bundle):
+    return [bundle/'Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex',
+            bundle/'Contents/Resources/codex']
+
+def desktop_candidates():
+    for folder in (Path('/Applications'),Path.home()/'Applications'):
+        for name in ('ChatGPT.app','Codex.app'):
+            yield from bundle_candidates(folder/name)
+
+def executable(value):
+    if not value:return None
+    path=Path(value).expanduser()
+    if not path.is_absolute():
+        found=shutil.which(str(path))
+        if not found:return None
+        path=Path(found).absolute()
+    return str(path) if path.is_file() and os.access(path,os.X_OK) else None
 
 def codex():
-    return os.environ.get('OV_APP_CODEX') or shutil.which('codex') or 'codex'
+    # Old manifests and already-running MCP processes may retain an obsolete
+    # OV_APP_CODEX after a desktop upgrade. Resolve on every operation, not install.
+    hint=os.environ.get('OV_APP_CODEX')
+    candidates=[hint]
+    if hint:
+        # Prefer the same app when it moved its bundled CLI. Also covers custom
+        # install locations and names, without recursively searching the disk.
+        path=Path(hint).expanduser()
+        bundles=[p for p in reversed(path.parents) if p.suffix=='.app']
+        if bundles:candidates.extend(bundle_candidates(bundles[0]))
+    candidates.append(shutil.which('codex'))
+    candidates.extend(desktop_candidates())
+    for candidate in candidates:
+        found=executable(candidate)
+        if found:return found
+    raise HostError('找不到可运行的 Codex。请安装或重新打开 Codex 后重试；原连接未切换。')
 
 def installed_plugins():
-    return json.loads(subprocess.check_output([codex(),'plugin','list','--json'],text=True,timeout=15,stderr=subprocess.DEVNULL))
+    result=host_request('plugin/list',{'marketplaceKinds':['local'],'forceRefetch':False})
+    return {'installed':[{'name':p['name'],'pluginId':p['id'],'marketplaceName':m['name'],'version':p.get('localVersion') or p.get('version'),'enabled':p.get('enabled',False)} for m in result.get('marketplaces',[]) for p in m.get('plugins',[]) if p.get('installed')]}
 
 def official_plugins(value):
     return [p for p in value.get('installed',[]) if p.get('name')=='openviking-memory' or p.get('pluginId','').startswith('openviking-memory@')]
@@ -40,7 +78,13 @@ def pin_new_install(installed,node):
     print('官方插件已安装。请在 Codex 的 /hooks 中启用并信任 OpenViking Hooks。')
 
 def host_hooks(cwd):
-    p=subprocess.Popen([codex(),'app-server','--stdio'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+    return host_request('hooks/list',{'cwds':[cwd]})
+
+def host_request(method,params):
+    try:
+        p=subprocess.Popen([codex(),'app-server','--stdio'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+    except OSError:
+        raise HostError('Codex 本机检查无法启动，请重新打开 Codex 后重试；原连接未切换。') from None
     q=queue.Queue()
     def reader():
         for line in p.stdout:
@@ -48,20 +92,26 @@ def host_hooks(cwd):
             except ValueError:pass
         q.put(None)
     threading.Thread(target=reader,daemon=True).start()
-    deadline=time.monotonic()+20
+    deadline=time.monotonic()+HOST_TIMEOUT
     def call(i,method,params):
         p.stdin.write(json.dumps({'id':i,'method':method,'params':params})+'\n');p.stdin.flush()
         while time.monotonic()<deadline:
             v=q.get(timeout=max(.01,deadline-time.monotonic()))
-            if v is None:raise RuntimeError('宿主检查未启动')
+            if v is None:raise HostError('Codex 本机检查进程已退出，请重新打开 Codex 后重试；原连接未切换。')
+            if not isinstance(v,dict):continue
             if v.get('id')==i:
-                if 'error' in v:raise RuntimeError('宿主检查不可用')
+                if 'error' in v:raise HostError('当前 Codex 无法完成插件检查，请更新 Codex 后重试；原连接未切换。')
+                if not isinstance(v.get('result'),dict):raise HostError('Codex 检查返回异常，请重试；原连接未切换。')
                 return v['result']
-        raise RuntimeError('宿主检查超时')
+        raise queue.Empty()
     try:
         call(1,'initialize',{'clientInfo':{'name':'ov-hook-check','version':'1'},'capabilities':{'experimentalApi':True}})
         p.stdin.write('{"method":"initialized"}\n');p.stdin.flush()
-        return call(2,'hooks/list',{'cwds':[cwd]})
+        return call(2,method,params)
+    except queue.Empty:
+        raise HostError('Codex 本机检查超时，请稍后重试；原连接未切换。') from None
+    except OSError:
+        raise HostError('Codex 本机检查已中断，请重试；原连接未切换。') from None
     finally:
         p.terminate()
         try:p.wait(timeout=2)

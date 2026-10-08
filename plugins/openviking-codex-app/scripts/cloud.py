@@ -1,5 +1,5 @@
 """Commercial-only client. Shares the official plugin's ovcli.conf; no hooks."""
-import hashlib,json,os,tempfile
+import hashlib,json,os,tempfile,re
 from pathlib import Path
 from urllib.request import Request,build_opener,HTTPRedirectHandler
 from urllib.error import HTTPError,URLError
@@ -35,7 +35,10 @@ def validate_credentials(c):
  if not isinstance(c,dict):raise CloudError('连接配置无法读取，请重新接入。')
  if c.get('url','').rstrip('/')!=ENDPOINT:raise CloudError('请连接火山 OpenViking。')
  if not isinstance(c.get('api_key'),str) or not c['api_key'].strip() or any(x in c['api_key'] for x in '\r\n'):raise CloudError('请补充有效 API Key。')
- if c.get('user',c.get('user_id','default')) not in ('','default'):raise CloudError('当前版本仅支持 default 用户，请核对连接身份。')
+ for field in ('account','account_id','user','user_id'):
+  if c.get(field) and (not isinstance(c[field],str) or not re.fullmatch(r'[A-Za-z0-9_.@-]+',c[field]) or c[field] in ('.','..')):raise CloudError('Account / User 标识无效。')
+ for a,b in (('account','account_id'),('user','user_id')):
+  if c.get(a) and c.get(b) and c[a]!=c[b]:raise CloudError('连接身份字段冲突。')
  return c
 
 def folder():
@@ -49,10 +52,10 @@ def load(name,default=None):
 def save(name,value):atomic(folder()/name,value)
 
 def request(path,body=None,*,config=None,timeout=45):
- if not path.startswith('/api/v1/') and path!='/mcp':raise CloudError('不支持的请求。')
+ if not path.startswith('/api/v1/') and path not in ('/mcp','/health'):raise CloudError('不支持的请求。')
  c=credentials() if config is None else validate_credentials(config);headers={'Authorization':'Bearer '+c['api_key'],'Accept':'application/json, text/event-stream','Content-Type':'application/json'}
  for field,header in [('account','X-OpenViking-Account'),('user','X-OpenViking-User')]:
-  if c.get(field):headers[header]=c[field]
+  if c.get(field) or c.get(field+'_id'):headers[header]=c.get(field) or c[field+'_id']
  try:
   with build_opener(NoRedirect()).open(Request(ENDPOINT+path,data=json.dumps(body).encode() if body is not None else None,headers=headers),timeout=timeout) as response:
    raw=response.read(16*1024*1024+1)
@@ -63,8 +66,12 @@ def request(path,body=None,*,config=None,timeout=45):
  if result.get('error') or result.get('status')=='error':raise CloudError('云端未完成请求，请在 Codex 中检查。')
  return result
 
+def user_root(config=None):
+ c=validate_credentials(config) if config is not None else credentials()
+ return 'viking://user/'+(c.get('user') or c.get('user_id') or 'default')
+
 def personal_uri(uri):
- roots=('viking://user/default/resources','viking://user/default/peers','viking://user/default/memories')
+ roots=tuple(user_root()+'/'+name for name in ('resources','peers','memories'))
  if not isinstance(uri,str) or any(x in ('.','..') for x in uri.split('/')) or '%' in uri or any(ord(x)<32 for x in uri) or not any(uri==b or uri.startswith(b+'/') for b in roots):raise CloudError('请选择个人空间内的资料。')
  return uri
 

@@ -2,11 +2,11 @@ import sys,json,tempfile,unittest,copy
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/openviking-codex-app/scripts'))
-import cloud,history,workspace,panel,onboarding,hook_setup
+import profiles,cloud,history,workspace,panel,onboarding,hook_setup
 class PersonalTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
-  self.patches=[patch.object(cloud,'CONFIG',self.root/'ovcli.conf'),patch.object(cloud,'ROOT',self.root/'state'),patch.dict('os.environ',{},clear=True)]
+  self.patches=[patch.object(profiles,'ROOT',self.root/'connections'),patch.object(cloud,'CONFIG',self.root/'ovcli.conf'),patch.object(cloud,'ROOT',self.root/'state'),patch.dict('os.environ',{},clear=True)]
   for p in self.patches:p.start()
   cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'test-only'})
   cloud.save('connection.json',{'verifiedAt':'2026-09-21T00:00:00Z'})

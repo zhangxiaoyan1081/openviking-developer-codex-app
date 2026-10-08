@@ -18,7 +18,7 @@ app.ontoolresult=result=>{
    if(item.type==='text'){try{const parsed=JSON.parse(item.text);if(parsed?.view){value=parsed;break;}}catch{}}
   }
  }
- if(!['onboarding','workspace'].includes(value?.view)){failed('未收到卡片内容，请重试。');return;}
+ if(!['onboarding','workspace','users'].includes(value?.view)){failed('未收到卡片内容，请重试。');return;}
  try{ui.render(value);received=true;}catch{failed('卡片内容无法显示，请重试。');}
 };
 app.onerror=()=>{if(received)ui.error('连接已中断，请在对话中重新打开卡片。');else failed('连接已中断，请重试。');};
