@@ -17,6 +17,10 @@ try{
  const cardTools=tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name);
  for(const name of ['show_onboarding','prepare_collaboration','review_import','publish_work','publish_report'])assert.ok(cardTools.includes(name),name+' must carry an App resource');
  assert.equal(tools.find(t=>t.name==='show_workspace')._meta,undefined);
+ assert.equal(tools.find(t=>t.name==='list_bound_users')._meta,undefined);
+ assert.ok(cardTools.includes('show_bound_users'));
+ const users=await client.callTool({name:'list_bound_users',arguments:{}});
+ assert.ok(!users.isError);assert.equal(users.structuredContent.view,undefined);
  const result=await client.callTool({name:'show_onboarding',arguments:{step:'connection'}});
  assert.ok(!result.isError);assert.equal(result.structuredContent.view,'onboarding');assert.equal(result.structuredContent.connection.ready,false);
  const resource=await client.readResource({uri:'ui://openviking/personal.html'});

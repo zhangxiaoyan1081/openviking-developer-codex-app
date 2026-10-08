@@ -21,7 +21,7 @@ function backend(action,args={}){return new Promise((resolve,reject)=>{
 });}
 function output(value){value={...value,runtimeVersion:version};return {content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value};}
 function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}={}){
- const config={description,inputSchema:schema,annotations:{readOnlyHint:readOnly,destructiveHint:false,openWorldHint:!['state','scope','confirm','review','publish_report'].includes(action)}};
+ const config={description,inputSchema:schema,annotations:{readOnlyHint:readOnly,destructiveHint:false,openWorldHint:!['state','bound_users','scope','confirm','review','publish_report'].includes(action)}};
  // Present user-facing results directly; do not rely on a second model call.
  // Background reads and App callbacks do not create extra cards.
  if(view)config._meta={ui:{resourceUri:resource,visibility:['model','app']}};
@@ -32,13 +32,14 @@ function tool(name,description,schema,action,{view,appOnly=false,readOnly=false}
  if(view)registerAppTool(server,name,config,handler);
  else server.registerTool(name,config,handler);
 }
-tool('show_onboarding','展示接入卡片。新的接入请求且未提供 Key 时用 step=connection 展示当前连接选择；接续已有流程用 current。覆盖连接、协作方式、范围、整理进度和摘要，不用浏览器或原生单选替代可用卡片。',{step:z.enum(['current','connection']).default('current')},'onboarding_view',{view:'onboarding',readOnly:true});
+tool('show_onboarding','仅在用户明确要求接入、恢复接入或处理接入卡片回调时展示接入卡片。普通任务、身份查询和资料归档不调用，未完成的接入状态也不是自动打开的理由。新的接入请求且未提供 Key 时用 step=connection；接续已有流程用 current。',{step:z.enum(['current','connection']).default('current')},'onboarding_view',{view:'onboarding',readOnly:true});
 tool('begin_user_binding','用户要求新增 OpenViking user 绑定时调用。保留已有连接，展示安装选择并重新走 onboarding；不把新增当成覆盖 Key。',{},'begin_binding',{view:'onboarding'});
 tool('choose_binding_setup','用户选择复用、更新 App 或重新安装。更新/重装只记录选择，由 Agent 执行安装后核对。',{revision:z.string(),mode:z.enum(['reuse','update','reinstall'])},'binding_setup',{appOnly:true});
 tool('complete_binding_setup','在已授权的插件更新/重装成功后核对安装及隔离配置，继续新用户绑定；不能用此调用代替真实安装。',{revision:z.string()},'binding_setup_done',{view:'onboarding'});
 tool('bind_user','在接入卡片安全输入 Key 和可选服务展示名，验证并保存新的用户绑定，再使用该用户继续 onboarding。',{revision:z.string(),api_key:z.string().min(1).max(8192),service_name:z.string().max(80).optional(),account:z.string().optional(),user:z.string().optional()},'bind_user',{appOnly:true});
 tool('activate_user_binding','重新加载后启用已保存的新用户绑定；不重复索取 Key。',{revision:z.string()},'activate_binding',{view:'onboarding'});
-tool('list_bound_users','展示本机已绑定的 User ID、库 ID、Account 和当前连接，不返回 Key。',{},'bound_users',{view:'users',readOnly:true});
+tool('list_bound_users','只读查询本机绑定与设备默认连接，返回数据，不打开卡片、不启动接入、不返回 Key。设备默认连接不等于当前任务的官方 MCP 实际身份；验证实际身份使用该 MCP 的 health。',{},'bound_users',{readOnly:true});
+tool('show_bound_users','仅在用户明确要求查看/管理 OpenViking 用户绑定，或本次用户绑定引导完成且尚未展示列表时，打开用户列表卡片。普通任务、后台身份检查、归档和权限排查不调用；静默查询用 list_bound_users。',{},'bound_users',{view:'users',readOnly:true});
 tool('set_user_database','用户明确提供现有绑定的库 ID 时补全展示信息；不把 Account ID 当库 ID。',{name:z.string(),database_id:z.string().min(1).max(160)},'user_database',{view:'users'});
 tool('switch_user','用户明确说切换 OpenViking user 为 XX 时直接调用。按 User ID 匹配；重复时按服务展示名选择连接，重名时用返回的 profile name 消歧。成功后旧任务工具仍固定原连接，需新任务加载目标用户；不得继续旧任务读写新库。',{user_id:z.string().min(1),database_id:z.string().optional(),service_name:z.string().max(80).optional(),profile_name:z.string().optional()},'switch_user',{view:'users'});
 tool('show_workspace','打开 OpenViking 工作台：返回侧边栏 URL。随后必须用 open_in_codex placement=right 打开；不生成工作台卡片。',{},'panel');

@@ -22,6 +22,7 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
     if(name==='select_scope'){v={...window.fixture,scope:a};if(v.onboarding)v.onboarding={...v.onboarding,phase:a.mode==='skip'?'ready':'prepare',choice:null};window.fixture=v;}
     if(name==='confirm_import')v={plan:{hash:a.hash,confirmed:true}};
     if(name==='get_state')v=window.fixture;
+    if(name==='list_bound_users')v={boundUsers:window.fixture.boundUsers};
     if(name==='choose_binding_setup'){v={...window.fixture,binding:{...window.fixture.binding,phase:a.mode==='reuse'?'connection':'install',setup:a.mode}};window.fixture=v;}
     if(name==='bind_user'){v={...window.fixture,binding:{...window.fixture.binding,phase:'onboarding'},connection:{...window.fixture.connection,ready:false,restartRequired:true}};window.fixture=v;}
 
@@ -172,5 +173,16 @@ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/ht
  await frame.locator('table').getByText('db-new',{exact:true}).waitFor();
  await frame.locator('table').getByText('当前使用',{exact:true}).waitFor();
  assert.equal(await frame.getByText('new-binding-secret').count(),0);
+ // Data-only refresh retains the explicitly opened users view without sending a new Agent message.
+ await render({view:'users',status:'ready',newTaskRequired:false,boundUsers:[{name:'personal',user:'default',account:'default',active:true}]});
+ await frame.getByRole('heading',{name:'OpenViking 用户',exact:true}).waitFor();
+ const messageCount=await page.evaluate(()=>messages.length);
+ await page.evaluate(()=>window.fixture.boundUsers[0].name='refreshed personal');
+ await frame.getByRole('button',{name:'刷新',exact:true}).click();
+ await frame.locator('table').getByText('refreshed personal',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>requests.at(-1).name),'list_bound_users');
+ assert.equal(await frame.getByRole('heading',{name:'OpenViking 用户',exact:true}).count(),1);
+ assert.equal(await page.locator('iframe').count(),1);
+ assert.equal(await page.evaluate(()=>messages.length),messageCount);
  assert.deepEqual(errors,[]);console.log('App bridge: scope, confirmation, report request, directory preview, XSS escaping, rejected message, mobile, missing result, reload and timeout recovery, existing connection consent, key input, auth failure and key switch passed.');
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

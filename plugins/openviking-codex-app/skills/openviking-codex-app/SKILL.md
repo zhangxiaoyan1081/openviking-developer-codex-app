@@ -1,12 +1,19 @@
 ---
 name: openviking-codex-app
-description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、从多个 Session 的 Working Memory 恢复进展，并打开个人工作台。用户请求接入、同步已有工作、更新工作台或继续已有工作时使用。
+description: 仅用于用户明确要求接入/继续接入 OpenViking、管理用户绑定、导入历史、打开工作台或在工作台回顾进展/生成报告，以及这些交互的卡片回调。普通任务、提到 OpenViking 的业务讨论、后台记忆检索、身份核对和资料归档不触发本接入流程。
 ---
 # OpenViking 个人版与企业用户
 
 入口是用户将火山控制台的接入指令粘贴到 Codex。先完成已授权安装与连接，再选择上下文范围；不是让用户从下载 ZIP 和填写第二次 key 开始。支持火山商业化个人版与企业版用户，连接身份以 /health 返回的 account_id/user_id 为准。只支持火山商业化服务。不要安装本地 OV 服务或引导模型部署。不要采集 Computer History。
 
 本插件没有记忆 Hook。记忆回流、召回与凭据由独立安装的官方 openviking-memory 插件管理。不要启用旧 ov-visualizer 的内置采集，遇到旧采集正在运行时说明冲突、协助用户明确切换，不同时双写。
+
+## 先判断本次意图
+
+- 普通写作、方案、代码、研究或继续业务工作，直接完成当前任务。使用记忆或归档资料不等于请求打开 App，不展示用户列表、连接或协作设置卡片。
+- 只需查绑定时用 `list_bound_users`，只返回数据。核对当前任务真正使用的云端身份，优先使用该任务官方记忆 MCP 的 `health`；本机默认绑定不能证明旧任务的 MCP 已切换。
+- `show_bound_users` 仅用于明确查看/管理绑定，或本次已授权绑定引导结束时的一次结果展示；完成页已经展示列表则不再补一张。
+- 未完成的 onboarding/binding 状态只用于用户明确要求继续接入时恢复，不能自行打断普通任务。用户在归档时遇到身份/权限问题，只说明必要的阻塞，不自动开卡或切换用户。
 
 ## 接入与首次使用
 
@@ -21,7 +28,7 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 
 ## 卡片调用要求
 
-桌面端先查找并调用当前注册的 show_onboarding；技能文件可读不等于 App 工具已加载，但也不能未经检查就认定工具不存在。工具可用时优先可视化卡片，不以 HIL 单选、Markdown 或脚本输出代替。只有工具确实不可调用或当前宿主无 Apps 支持时才用对话兜底，并遵守下文的简洁提示规则。
+仅在本次已明确进入接入/绑定流程后，桌面端先查找并调用当前注册的 show_onboarding；技能文件可读不等于 App 工具已加载，但也不能未经检查就认定工具不存在。工具可用时优先可视化卡片，不以 HIL 单选、Markdown 或脚本输出代替。只有工具确实不可调用或当前宿主无 Apps 支持时才用对话兜底，并遵守下文的简洁提示规则。
 
 - 连接通过后：check_memory(cwd)，show_onboarding 展示自动记忆/按需使用；Hook 设置完成前不能展示长期协作卡。
 - 新接入未提供 Key：show_onboarding(step="connection")。已提供 Key 且验证通过可跳过重复输入，但继续展示后续卡片。
@@ -32,7 +39,7 @@ description: 接入火山 OpenViking 个人版、带入 Codex 历史与资料、
 
 ## 必须完成的流程
 
-每次恢复先读 get_state.onboarding 的 phase、nextAction、collaboration、import 与 choice，按当前阶段推进。工具未注册时，以 `python3 <plugin-root>/scripts/app_backend.py state <<<'{}'` 读取同一状态，用脚本完成可用步骤；详细执行契约见 [流程与降级](references/onboarding-flow.md)。不要把技能可读当成工具已加载，也不因卡片不可用跳过后续步骤。
+用户明确要求恢复接入时，先读 get_state.onboarding 的 phase、nextAction、collaboration、import 与 choice，按当前阶段推进。工具未注册时，以 `python3 <plugin-root>/scripts/app_backend.py state <<<'{}'` 读取同一状态，用脚本完成可用步骤；详细执行契约见 [流程与降级](references/onboarding-flow.md)。不要把技能可读当成工具已加载，也不因卡片不可用跳过后续步骤。
 
 连接 → 选择记忆方式并核对 Hooks → 确认或沿用协作方式 → 选择是否导入 → 工作摘要或使用预期 → 具体下一步。选择范围、确认计划、提交抽取、发布本地卡片都不是 onboarding 完成。仍有可执行步骤时在同一轮继续，用户不需要另说“继续 onboarding”。仅在等待真正必要的用户选择、宿主操作或用户主动稍后时停下。
 
@@ -112,7 +119,7 @@ history.py collect <计划文件> 读取每个所选 Session 的最新可用概�
 - 选择复用直接展示新用户 Key 与可选服务展示名输入；选择更新/重装时，先完成已授权的 App 安装（复用已有官方插件），再运行源码 `scripts/install-switcher.py` 更新连接隔离组件，实际安装成功后调用 `complete_binding_setup(revision)`。此调用只是核查，不替代安装动作。新运行版本需加载时明确提示一次重载，不要求重复输入 Key。
 - Key 通过卡片密码框传入 `bind_user`（仅 App 可调用），不进聊天、参数日志或报告。不要求用户提供库 ID；仅在服务端返回时记录，拿不到则留空，不将 Account ID 当库 ID。允许设置可选服务展示名来区分连接，留空使用自动生成的连接名。User ID 与 Account ID 以验证后的服务端身份为准。
 - 新绑定验证后保存并启用新用户，旧配置保留。返回连接重载提示后停止旧任务的库读写，新任务加载目标用户，再完整执行记忆方式与 Hooks → 协作规则 → 历史范围 → 摘要或使用预期。绑定阶段为 activate 时通过 `activate_user_binding` 继续，不重新索要 Key。新增流程不是完成 Key 验证就结束。
-- 完成时调用 `list_bound_users`，展示全部已绑定服务展示名、User ID、Account、当前连接及服务端已返回的库 ID，并提示“记住 User ID，下次说：切换 OpenViking user 为 XX”。界面完成页也展示同一列表。库 ID 缺失不影响绑定或切换，不要求用户补填。
-- 用户说“切换 OpenViking user 为 XX”时直接调用 `switch_user(user_id=XX)`。用户指定服务展示名时传 service_name；多个匹配时请用户按展示名选择连接，重名时使用返回的 name 传 profile_name 精确匹配，未绑定则引导新增。工具已执行切换后不要再次问是否确认，也不默认重走历史导入；新任务加载该连接已保存的状态，未完成 onboarding 的继续完成。
+- 本次绑定引导完成时，若完成页尚未展示列表，调用一次 `show_bound_users` 展示服务展示名、User ID、Account、设备默认连接及服务端已返回的库 ID。用户明确要求查看绑定时也用此展示入口。后台查询只用 `list_bound_users`，不再补展示调用。库 ID 缺失不影响绑定或切换，不要求用户补填。
+- 用户说“切换 OpenViking user 为 XX”时直接调用 `switch_user(user_id=XX)`。用户指定服务展示名时传 service_name；多个匹配时请用户按展示名选择连接，重名时使用返回的 name 传 profile_name 精确匹配，未绑定则引导新增。工具已执行切换后不要再次问是否确认，也不默认重走历史导入；新任务加载该连接已保存的状态；仅当用户明确要求继续接入或承接本次接入回调时推进未完成的 onboarding，不打断普通业务任务。
 - 官方 MCP 进程固定启动时连接，Hook 按绑定与任务归属隔离。第一次安装 MCP 隔离组件后必须重启 Codex 一次，工具会检查升级前进程是否退出。此后对话切换更新默认连接，旧任务保留原 MCP，目标用户在新任务加载；若宿主仍复用旧 MCP 才重启。不把“默认连接切换”说成所有已有任务立即切到新库。
 - 不迁移或自动补传历史，跨连接不复用带旧内容的任务/fork；非 default 用户需核对其资料归档授权。不要修改 trusted_hash 或代替用户批准 Hooks。终端 ov-user 仅保留为故障恢复入口，不作为日常交互路径。

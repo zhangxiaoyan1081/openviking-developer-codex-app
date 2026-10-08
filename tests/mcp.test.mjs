@@ -6,15 +6,43 @@ import { mkdtemp,rm,cp,mkdir,readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+test('background user lookup stays data-only even with unfinished onboarding',async()=>{
+ const temp=await mkdtemp(path.join(os.tmpdir(),'ov-users-'));
+ const scripts=path.resolve('plugins/openviking-codex-app/scripts');
+ const env={PATH:process.env.PATH,HOME:temp,TMPDIR:temp};
+ const python=code=>execFileSync('python3',['-c',code],{env,encoding:'utf8'});
+ python(`import sys;sys.path.insert(0,${JSON.stringify(scripts)});import cloud,profiles,bindings;cloud.atomic(cloud.CONFIG,{'url':cloud.ENDPOINT,'api_key':'fixture-private-key'});profiles.initialize();bindings.begin()`);
+ const snapshot=()=>python(`import pathlib,json,hashlib;root=pathlib.Path.home()/'.openviking';print(json.dumps({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()},sort_keys=True))`);
+ const before=snapshot();
+ const client=new Client({name:'background-task',version:'1'});
+ try{
+  await client.connect(new StdioClientTransport({command:process.execPath,args:[path.join(scripts,'app_server.mjs')],env}));
+  const {tools}=await client.listTools();
+  assert.equal(tools.find(t=>t.name==='list_bound_users')._meta,undefined,'A background lookup must never attach an App resource');
+  for(let i=0;i<2;i++){
+   const result=await client.callTool({name:'list_bound_users',arguments:{}});
+   assert.equal(result.isError,undefined);assert.equal(result.structuredContent.view,undefined);
+   assert.equal(result._meta,undefined);
+   assert.equal(result.structuredContent.boundUsers[0].user,'default');
+   assert.equal(JSON.parse(result.content[0].text).view,undefined);
+   assert.ok(!JSON.stringify(result).includes('fixture-private-key'));
+  }
+  assert.ok(tools.find(t=>t.name==='show_bound_users')._meta.ui.resourceUri);
+  const shown=await client.callTool({name:'show_bound_users',arguments:{}});
+  assert.equal(shown.structuredContent.view,'users');
+  assert.equal(shown.structuredContent.boundUsers.length,1);
+  assert.equal(snapshot(),before,'Lookup/display must not advance binding or change connection');
+ }finally{await client.close();await rm(temp,{recursive:true,force:true});}
+});
 test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejection',async()=>{
  const temp=await mkdtemp(path.join(os.tmpdir(),'ov-mcp-'));
  const client=new Client({name:'test',version:'1.0.0'});
  const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/openviking-codex-app/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
  try{
   await client.connect(transport);
-  const {tools}=await client.listTools();assert.equal(tools.length,30);
-  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['activate_user_binding','begin_user_binding','complete_binding_setup','list_bound_users','prepare_collaboration','publish_report','publish_work','review_import','set_user_database','show_onboarding','switch_user']);
-  for(const name of ['get_state','open_workspace_panel','show_workspace'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
+  const {tools}=await client.listTools();assert.equal(tools.length,31);
+  assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['activate_user_binding','begin_user_binding','complete_binding_setup','prepare_collaboration','publish_report','publish_work','review_import','set_user_database','show_bound_users','show_onboarding','switch_user']);
+  for(const name of ['get_state','list_bound_users','open_workspace_panel','show_workspace'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
   const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
   assert.deepEqual(tools.find(x=>x.name==='confirm_import')._meta.ui.visibility,['app']);
   const result=await client.callTool({name:'show_onboarding',arguments:{}});

@@ -1,6 +1,6 @@
 {
   "name": "openviking-codex-app",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "连接火山 OpenViking，带入已有工作并继续。",
   "author": {
     "name": "Local developer"
