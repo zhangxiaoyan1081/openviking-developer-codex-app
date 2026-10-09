@@ -12,9 +12,12 @@ const lists={
  'viking://agent':'[dir] assistant'
 };
 const text=t=>({content:[{type:'text',text:t}]});
-const server=http.createServer((req,res)=>{
- const u=new URL(req.url,'http://localhost'),uri=u.searchParams.get('uri');requests.push({path:u.pathname,uri,offset:u.searchParams.get('offset')});
- if(u.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
+const server=http.createServer(async(req,res)=>{
+ let routed=req.url;
+ if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const value=JSON.parse(raw);const mapping={list_directory:'list',tree_directory:'tree',read_file:'read',get_session_progress:'session_progress',read_session_overview:'session_detail'};routed=req.url==='/api/workspace_state'?'/api/state':'/api/'+mapping[value.tool]+'?'+new URLSearchParams(value.arguments);}
+
+ const u=new URL(routed,'http://localhost'),uri=u.searchParams.get('uri');requests.push({path:u.pathname,uri,offset:u.searchParams.get('offset')});
+ if(u.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html.replace('<head>','<head><meta name="ov-token" content="fixture">'));return;}
  res.setHeader('Content-Type','application/json');
  if(u.pathname==='/api/state'){res.end(JSON.stringify({connection:{ready:true},workspace:{works:[]},reports:[]}));return;}
  if(u.pathname==='/api/session_progress'){res.end(JSON.stringify({status:'complete',total:0,done:0,matched:0,items:[]}));return;}

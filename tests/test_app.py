@@ -14,8 +14,8 @@ class AppTests(unittest.TestCase):
    self.assertEqual(result['reports'],[{'title':'Saved report'}])
    self.assertNotIn('api_key',json.dumps(result))
    finish.assert_not_called();flow.assert_not_called()
-  with patch.object(app_backend.connection,'status',return_value={'canReuse':False,'ready':False}):
-   self.assertEqual(app_backend.dispatch('workspace_state',{})['reports'],[])
+  cloud.save('connection.json',{})
+  self.assertEqual(app_backend.dispatch('workspace_state',{})['reports'],[])
  def test_new_connection_card_hides_previous_workspace_without_resetting_it(self):
   cloud.save('workspace.json',{'works':[{'title':'existing work'}]})
   result=app_backend.dispatch('onboarding_view',{'step':'connection'})

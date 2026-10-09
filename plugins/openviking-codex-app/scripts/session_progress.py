@@ -111,7 +111,8 @@ def page(value):
    job=uuid.uuid4().hex
    index={'job':job,'status':'running','total':None,'done':0,'rows':index.get('rows',[]),'checkedAt':time.time()}
    cloud.atomic(path,index)
-   subprocess.Popen([sys.executable,__file__,'scan',base.parent.name,job],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+   worker=subprocess.Popen([sys.executable,__file__,'scan',base.parent.name,job],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+   worker.stdin.write(json.dumps(cloud.credentials()).encode());worker.stdin.close()
   elif index.get('status')=='running' and not running:
    index.update(status='failed',error='读取已中断，请刷新重试。');cloud.atomic(path,index)
  rows=index.get('rows',[]);query=str(value.get('query','')).strip().casefold()[:200]
@@ -128,4 +129,5 @@ def detail(value):
  if not isinstance(body,str):raise cloud.CloudError('概览暂时无法读取。')
  return {'uri':uri,'overview':body}
 
-if __name__=='__main__' and len(sys.argv)==4 and sys.argv[1]=='scan':scan(sys.argv[2],sys.argv[3])
+if __name__=='__main__' and len(sys.argv)==4 and sys.argv[1]=='scan':
+ with cloud.pinned_credentials(json.load(sys.stdin)):scan(sys.argv[2],sys.argv[3])

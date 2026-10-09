@@ -119,12 +119,14 @@ def mcp(node,script):
   env={**os.environ,'OPENVIKING_CLI_CONFIG_FILE':str(ROOT/name/'config.json'),'OPENVIKING_CREDENTIAL_SOURCE':'cli'}
  os.execve(node,[node,script],env)
 
-def switch(name,live=False):
+def switch(name,live=False,expected_revision=None):
  name_ok(name)
  if live:assert_live_isolation()
  else:assert_stopped();assert_hook_isolation()
  with locked():
-  recover();old=active();current=cloud.credentials()
+  recover()
+  if expected_revision is not None and connection.snapshot()[1]!=expected_revision:raise cloud.CloudError("连接已变化，请刷新工作台后重试。")
+  old=active();current=cloud.credentials()
   if fingerprint(current)!=profile(old)['fingerprint']:
    raise cloud.CloudError('当前配置在切换器之外发生变化，已停止切换；请先核对。')
   candidate=load(ROOT/name/'config.json');meta=profile(name)
@@ -134,6 +136,7 @@ def switch(name,live=False):
   if actual_db and meta.get('databaseId') and actual_db!=meta['databaseId']:raise cloud.CloudError('库 ID 已变化，未切换连接，请核对绑定。')
   if fingerprint(candidate)!=meta['fingerprint']:raise cloud.CloudError('服务端身份已变化，请重新登记连接。')
   if not live:assert_stopped()
+  if expected_revision is not None and connection.snapshot()[1]!=expected_revision:raise cloud.CloudError('连接已变化，请刷新工作台后重试。')
   cloud.atomic(ROOT/'switch.json',{'previous':old,'target':name})
   try:
    cloud.atomic(cloud.CONFIG,candidate)

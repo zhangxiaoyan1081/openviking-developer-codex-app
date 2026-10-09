@@ -12,9 +12,9 @@ def state():
  return {**empty,'scope':cloud.load('scope.json') if flow['scopeCurrent'] else None,'plan':cloud.load('review.json') if flow['scopeCurrent'] else None,'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':flow,'binding':bindings.finish_if_ready(flow)}
 
 def dispatch(action,value):
- if action=='workspace_state':
-  c=connection.status()
-  return {'configured':c['canReuse'],'connection':c,'reports':cloud.load('reports.json',[]) if c['ready'] else []}
+ if action in ('workspace_state','workspace_read','workspace_switch'):
+  import workspace_users
+  return workspace_users.dispatch(action,value)
  if action=='state':return state()
  if action=='begin_binding':bindings.begin();return state()
  if action=='binding_setup':bindings.choose_setup(value['revision'],value['mode']);return state()
@@ -58,6 +58,24 @@ def dispatch(action,value):
   plan=cloud.load('review.json')
   if not plan or plan['hash']!=value['hash']:raise ValueError('清单已更新，请重新查看。')
   plan['confirmed']=True;cloud.save('review.json',plan);return state()
+ if action in ('list','tree','read'):return read_action(action,value)
+ if action=='publish_report':
+  r=value
+  if not re.fullmatch(r'[a-zA-Z0-9_-]{1,100}',r['id']):raise ValueError('报告标识无效。')
+  if r['kind'] not in ('progress','daily','weekly','insight'):raise ValueError('报告类型无效。')
+  for key in ('title','period','body','coverage'):
+   if not isinstance(r.get(key),str) or not r[key].strip():raise ValueError('报告需要正文、时间范围和覆盖说明。')
+  if not r.get('sources'):raise ValueError('报告需要来源。')
+  for s in r['sources']:cloud.personal_uri(s['uri'])
+  r['updatedAt']=datetime.now(timezone.utc).isoformat()
+  reports=cloud.load('reports.json',[]);reports=[x for x in reports if x['id']!=r['id']];reports.insert(0,r)
+  cloud.save('reports.json',reports);return {**state(),'saved':r['id']}
+ if action=='panel':return {'url':panel.start()}
+ raise ValueError('不支持的操作。')
+
+def read_action(action,value):
+ if action=='session_progress':return session_progress.page(value)
+ if action=='session_detail':return session_progress.detail(value)
  if action=='list':
   uri=cloud.browse_uri(value['uri'])
   if uri=='viking://user':
@@ -73,19 +91,7 @@ def dispatch(action,value):
   uri=cloud.browse_uri(value['uri']);offset=int(value.get('offset',0))
   if offset<0:raise ValueError('读取位置无效。')
   return cloud.browse_rpc('read',{'uris':[uri],'offset':offset,'limit':200})
- if action=='publish_report':
-  r=value
-  if not re.fullmatch(r'[a-zA-Z0-9_-]{1,100}',r['id']):raise ValueError('报告标识无效。')
-  if r['kind'] not in ('progress','daily','weekly','insight'):raise ValueError('报告类型无效。')
-  for key in ('title','period','body','coverage'):
-   if not isinstance(r.get(key),str) or not r[key].strip():raise ValueError('报告需要正文、时间范围和覆盖说明。')
-  if not r.get('sources'):raise ValueError('报告需要来源。')
-  for s in r['sources']:cloud.personal_uri(s['uri'])
-  r['updatedAt']=datetime.now(timezone.utc).isoformat()
-  reports=cloud.load('reports.json',[]);reports=[x for x in reports if x['id']!=r['id']];reports.insert(0,r)
-  cloud.save('reports.json',reports);return {**state(),'saved':r['id']}
- if action=='panel':return {'url':panel.start()}
- raise ValueError('不支持的操作。')
+ raise cloud.CloudError('不支持的浏览操作。')
 
 if __name__=='__main__':
  try:print(json.dumps(dispatch(sys.argv[1],json.load(sys.stdin)),ensure_ascii=False))

@@ -40,7 +40,7 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
  const transport=new StdioClientTransport({command:'node',args:[path.resolve('plugins/openviking-codex-app/scripts/app_server.mjs')],env:{PATH:process.env.PATH,HOME:temp}});
  try{
   await client.connect(transport);
-  const {tools}=await client.listTools();assert.equal(tools.length,33);
+  const {tools}=await client.listTools();assert.equal(tools.length,35);
   assert.deepEqual(tools.filter(t=>t._meta?.ui?.resourceUri||t._meta?.['ui/resourceUri']).map(t=>t.name).sort(),['activate_user_binding','begin_user_binding','complete_binding_setup','open_workspace','prepare_collaboration','publish_report','publish_work','review_import','set_user_database','show_bound_users','show_onboarding','switch_user']);
   for(const name of ['get_state','list_bound_users','open_workspace_panel','show_workspace'])assert.equal(tools.find(t=>t.name===name)._meta,undefined);
   const state=await client.callTool({name:'get_state',arguments:{}});assert.equal(state.structuredContent.view,undefined);
@@ -48,6 +48,7 @@ test('bundled MCP: app metadata, isolated startup, HTML resource, schema rejecti
   const result=await client.callTool({name:'show_onboarding',arguments:{}});
   assert.equal(result.isError,undefined);assert.equal(result.structuredContent.view,'onboarding');assert.equal(result.structuredContent.configured,false);assert.equal(result.structuredContent.connection.ready,false);
   for(const name of ['connect_key','connect_existing'])assert.deepEqual(tools.find(x=>x.name===name)._meta.ui.visibility,['app']);
+  for(const name of ['workspace_read','workspace_switch_user']){const t=tools.find(x=>x.name===name);assert.deepEqual(t._meta.ui.visibility,['app']);assert.equal(t._meta.ui.resourceUri,undefined);}
   const sidebar=tools.find(t=>t.name==='open_workspace');
   assert.equal(sidebar.title,'OpenViking');
   assert.deepEqual(sidebar._meta['openai/ui'].entrypoints,[{type:'global'}]);

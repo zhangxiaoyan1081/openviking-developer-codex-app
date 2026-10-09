@@ -1,6 +1,8 @@
+import {createWorkspace} from './workspace-users.mjs';
 document.querySelector('header small').textContent='工作台';
-import {createUI} from './ui.mjs';
-const endpoints={get_state:'/api/state',get_session_progress:'/api/session_progress',read_session_overview:'/api/session_detail',list_directory:'/api/list',read_file:'/api/read',tree_directory:'/api/tree'};
-const call=async(name,args)=>{const response=await fetch(endpoints[name]+'?'+new URLSearchParams(args));const value=await response.json();if(!response.ok||value.error)throw Error(value.error||'读取失败。');return value;};
-const ui=createUI({call,panel:true});
-call('get_state',{}).then(value=>ui.render({...value,view:'workspace'})).catch(e=>ui.error(e.message));
+const transport=async(name,args={})=>{
+ const paths={get_workspace_state:'/api/workspace_state',workspace_read:'/api/workspace_read',workspace_switch_user:'/api/workspace_switch'};
+ const response=await fetch(paths[name],{method:'POST',headers:{'Content-Type':'application/json','X-OV-Token':document.querySelector('meta[name=ov-token]').content},body:JSON.stringify(args)});
+ const value=await response.json();if(!response.ok||value.error)throw Error(value.error||'读取失败。');return value;
+};
+const ui=createWorkspace({transport});ui.start().catch(e=>ui.fail(e.message));

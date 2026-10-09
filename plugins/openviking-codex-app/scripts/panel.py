@@ -28,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
   if not self.allowed():self.send({'error':'请从本机打开。'},403);return
   u=urlsplit(self.path);q=parse_qs(u.query)
   try:
-   if u.path=='/':self.send(ASSET.read_text().replace('__TOKEN__',self.server.token),html=True)
+   if u.path=='/':self.send(ASSET.read_text().replace('<head>','<head><meta name="ov-token" content="'+self.server.token+'">'),html=True)
    elif u.path=='/health':self.send({'app':'openviking-codex-app','instance':self.server.token,'build':BUILD})
    elif u.path=='/api/state':
     if getattr(self.server,'connection_id',cloud.folder().name)!=cloud.folder().name:raise ValueError('连接已更换，请重新打开工作台。')
@@ -45,11 +45,16 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   if not self.allowed() or not secrets.compare_digest(self.headers.get('X-OV-Token',''),self.server.token):self.send({'error':'请重新打开页面。'},403);return
   try:
-   if self.path!='/api/scope':raise ValueError('不支持的操作。')
+   if self.path not in ('/api/scope','/api/workspace_state','/api/workspace_read','/api/workspace_switch'):raise ValueError('不支持的操作。')
    size=int(self.headers.get('Content-Length','0'))
    if not 0<size<16000:raise ValueError('内容过长。')
+   args=json.loads(self.rfile.read(size))
+   if not isinstance(args,dict):raise ValueError('请求格式无效。')
+   if self.path.startswith('/api/workspace_'):
+    from workspace_users import dispatch
+    self.send(dispatch(self.path.rsplit('/',1)[1],args));return
    connection.require_ready()
-   value=scope(json.loads(self.rfile.read(size)));cloud.save('scope.json',value);self.send(value)
+   value=scope(args);cloud.save('scope.json',value);self.send(value)
   except (ValueError,cloud.CloudError) as e:self.send({'error':str(e)},400)
 
 def serve():

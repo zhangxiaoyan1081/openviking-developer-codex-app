@@ -72,6 +72,8 @@ registerAppTool(server,'open_workspace',{
  _meta:{ui:{resourceUri:workspaceResource,visibility:['app']},'openai/ui':{entrypoints:[{type:'global'}]}},
 },async()=>{try{return output({...await backend('workspace_state'),view:'workspace'});}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}});
 tool('get_workspace_state','只读加载工作台连接与报告，不推进接入流程。',{},'workspace_state',{appOnly:true,readOnly:true});
+tool('workspace_read','工作台按已显示的连接读取目录、进展和文件；不改变对话工具的身份。',{revision:z.string(),tool:z.enum(['list_directory','tree_directory','read_file','get_session_progress','read_session_overview']),arguments:z.record(z.string(),z.unknown()).default({})},'workspace_read',{appOnly:true,readOnly:true});
+tool('workspace_switch_user','仅在用户点击工作台中的已绑定用户时切换设备默认连接；已有对话保持原连接。',{revision:z.string(),profile_name:z.string()},'workspace_switch',{appOnly:true});
 registerAppResource(server,'OpenViking 工作台',workspaceResource,{},async()=>({contents:[{uri:workspaceResource,mimeType:RESOURCE_MIME_TYPE,text:await readFile(path.join(root,'assets/workspace.html'),'utf8'),_meta:{ui:{csp:{connectDomains:[],resourceDomains:[]}},'openai/ui':{availableDisplayModes:['fullscreen'],preferredDisplayMode:'fullscreen'}}}]}));
 registerAppResource(server,'OpenViking',resource,{},async()=>({contents:[{uri:resource,mimeType:RESOURCE_MIME_TYPE,text:await readFile(path.join(root,'assets/app.html'),'utf8'),_meta:{ui:{prefersBorder:true,csp:{connectDomains:[],resourceDomains:[]}}}}]}));
 await server.connect(new StdioServerTransport());

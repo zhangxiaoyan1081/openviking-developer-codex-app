@@ -87,7 +87,7 @@ export function createUI({call,send,expand,panel=false,initialPage='progress',st
  }
  function sources(items){return items.map(s=>`<button class="source" data-file="${esc(s.uri)}">↗ ${esc(s.label)}</button>`).join('');}
  function workspace(){
-  sessionProgress?.dispose();
+  sessionProgress?.dispose();explorer?.dispose();
   if(!state.connection?.ready||keyEntry){connect();return;}
   revision++;$('#header-actions').innerHTML=`<button class="quiet" data-action="refresh" aria-label="刷新">刷新</button>${panel?'':'<button class="quiet" data-action="expand">展开</button><button class="quiet" data-action="panel">侧边栏 ↗</button>'}`;
   if(page==='files'){directory();return;}

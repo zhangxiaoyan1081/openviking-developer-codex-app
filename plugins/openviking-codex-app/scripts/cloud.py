@@ -1,6 +1,16 @@
 """Commercial-only client. Shares the official plugin's ovcli.conf; no hooks."""
 import hashlib,json,os,tempfile,re
 from pathlib import Path
+from contextlib import contextmanager
+from contextvars import ContextVar
+_workspace_credentials=ContextVar("workspace_credentials",default=None)
+
+@contextmanager
+def pinned_credentials(config):
+ token=_workspace_credentials.set(dict(validate_credentials(config)))
+ try:yield
+ finally:_workspace_credentials.reset(token)
+
 from urllib.request import Request,build_opener,HTTPRedirectHandler
 from urllib.error import HTTPError,URLError
 ENDPOINT='https://api.vikingdb.cn-beijing.volces.com/openviking'
@@ -26,6 +36,8 @@ def check_environment():
 
 def credentials():
  check_environment()
+ pinned=_workspace_credentials.get()
+ if pinned is not None:return dict(pinned)
  try:c=json.loads(CONFIG.read_text())
  except FileNotFoundError:raise CloudError('请先在 Codex 中完成接入。') from None
  except (ValueError,OSError):raise CloudError('连接配置无法读取，请重新接入。') from None

@@ -4,8 +4,11 @@ const http=require('node:http'),assert=require('node:assert/strict');
 const html=readFileSync('plugins/openviking-codex-app/assets/index.html','utf8');
 const records=Array.from({length:45},(_,i)=>({id:'work-'+i,title:'项目进展 '+i,state:'已完成需求梳理与方案评审，当前正在核对交互细节。下一步等待测试结果，补齐验收记录。',status:'ready',updatedAt:'2026-09-21T08:30:00Z',overviewUri:'viking://user/default/sessions/work-'+i+'/history/archive_003/.overview.md'}));
 let polls=0,detailReads=0,failDetail=true;
-const server=http.createServer((req,res)=>{const u=new URL(req.url,'http://localhost');res.setHeader('Content-Type','application/json');
- if(u.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
+const server=http.createServer(async(req,res)=>{
+ let routed=req.url;
+ if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const value=JSON.parse(raw);const mapping={list_directory:'list',tree_directory:'tree',read_file:'read',get_session_progress:'session_progress',read_session_overview:'session_detail'};routed=req.url==='/api/workspace_state'?'/api/state':'/api/'+mapping[value.tool]+'?'+new URLSearchParams(value.arguments);}
+const u=new URL(routed,'http://localhost');res.setHeader('Content-Type','application/json');
+ if(u.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html.replace('<head>','<head><meta name="ov-token" content="fixture">'));return;}
  if(u.pathname==='/api/state'){res.end(JSON.stringify({connection:{ready:true},workspace:{works:[{title:'Old local work should not appear'}]},reports:[]}));return;}
  if(u.pathname==='/api/session_progress'){polls++;const offset=Number(u.searchParams.get('offset')||0),q=u.searchParams.get('query')||'',rows=records.filter(x=>x.title.includes(q));res.end(JSON.stringify({status:polls===1?'running':'complete',done:polls===1?20:45,total:45,matched:rows.length,items:rows.slice(offset,offset+20)}));return;}
  if(u.pathname==='/api/session_detail'){detailReads++;if(failDetail){failDetail=false;res.statusCode=400;res.end(JSON.stringify({error:'概览暂时无法读取。'}));return;}res.end(JSON.stringify({overview:'---\ngenerated_by: fixture\n---\n# Working Memory\n\n## Session Title\n项目进展\n\n## Current State\n已完成评审。\n\n'+Array.from({length:240},(_,i)=>'- 验收条目 '+i).join('\n')+'\n\n<script>window.hacked=true</script>',uri:u.searchParams.get('uri')}));return;}
@@ -13,7 +16,7 @@ const server=http.createServer((req,res)=>{const u=new URL(req.url,'http://local
 });
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({channel:'chrome',headless:true});try{
  const context=await browser.newContext({viewport:{width:1180,height:950},permissions:['clipboard-read','clipboard-write']});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port);
- await page.locator('.session-card').first().waitFor();assert.deepEqual(await page.locator('nav button').allTextContents(),['目录','工作进展','报告与洞察']);assert.equal(await page.getByText('Old local work should not appear',{exact:true}).count(),0);assert.equal(await page.locator('.session-card').count(),20);assert.equal(detailReads,0);
+ await page.getByRole('button',{name:'工作进展',exact:true}).click();await page.locator('.session-card').first().waitFor();assert.deepEqual(await page.locator('nav button').allTextContents(),['目录','工作进展','报告与洞察']);assert.equal(await page.getByText('Old local work should not appear',{exact:true}).count(),0);assert.equal(await page.locator('.session-card').count(),20);assert.equal(detailReads,0);
  await page.locator('#progress-status').getByText('45 个会话',{exact:true}).waitFor();
  const first=await page.locator('.session-card').nth(0).boundingBox(),second=await page.locator('.session-card').nth(1).boundingBox();assert.equal(first.x,second.x);assert.ok(second.y>first.y+first.height);assert.ok(first.width>900);
  mkdirSync('.local/acceptance/screenshots',{recursive:true});await page.screenshot({path:'.local/acceptance/screenshots/workspace-progress.png'});
