@@ -7,8 +7,8 @@ export function entries(result,uri){
  const text=(result.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('\n');
  return {text,items:text.split('\n').map(x=>x.match(/^\[(dir|file)\] (.+)$/)).filter(Boolean).map(x=>({dir:x[1]==='dir',name:x[2].replace(/\/$/,''),uri:uri+'/'+x[2].replace(/\/$/,'')}))};
 }
-export function createUI({call,send,expand,panel=false}){
- let state={},page='progress',scopeMode=null,keyEntry=false,choosingScope=false,entryConnection=false,uri=ROOT,revision=0,busy=false,pollTimer,pollCount=0,pollGeneration=0,summaryCard=false,explorer,sessionProgress;
+export function createUI({call,send,expand,panel=false,initialPage='progress',stateTool='get_state',failureTitle='卡片暂时无法显示'}){
+ let state={},page=initialPage,scopeMode=null,keyEntry=false,choosingScope=false,entryConnection=false,uri=ROOT,revision=0,busy=false,pollTimer,pollCount=0,pollGeneration=0,summaryCard=false,explorer,sessionProgress;
  const $=s=>document.querySelector(s),main=$('#main'),notice=$('#notice');
  const message=text=>{notice.textContent=text;};
  async function run(fn){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);message('');try{await fn();}catch(e){message(e.message||'操作未完成，请重试。');}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
@@ -38,7 +38,7 @@ export function createUI({call,send,expand,panel=false}){
  function connect(){
   revision++;$('#header-actions').innerHTML=panel?'':'<button class="quiet" data-action="refresh">刷新</button>';
   const c=state.connection||{};
-  if(panel){main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">请在 Codex 对话中完成连接。</p>';return;}
+  if(panel){$('#header-actions').innerHTML='<button class="quiet" data-action="refresh">刷新</button>';main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">在 Codex 对话中发送“接入 OpenViking”，完成后刷新此页。</p>';return;}
   if(c.blocked){main.innerHTML=`<h1>连接 OpenViking</h1><p class="muted">${esc(c.message||'请在 Codex 中检查连接配置。')}</p>`;return;}
   if(c.restartRequired){main.innerHTML='<h1>连接已更新</h1><p>新开一个 Codex 任务，发送“继续 OpenViking 接入”。</p>';return;}
   if(c.canReuse&&!keyEntry){main.innerHTML='<h1>连接 OpenViking</h1><p class="muted">检测到此设备已保存的火山连接。</p><div class="actions"><button class="primary" data-action="connect-existing">使用当前连接</button><button data-action="change-key">更换 API Key</button></div>';return;}
@@ -106,7 +106,7 @@ export function createUI({call,send,expand,panel=false}){
   if(page!=='files'||!$('#explorer')){page='files';await directory();}
   await explorer.open(target);
  }
- async function refresh(view){const result=await call(state.view==='users'?'list_bound_users':'get_state',{});state={...state,...result,view:view||state.view};if(state.view==='users')users();else if(state.view==='onboarding')onboarding();else workspace();schedulePoll();}
+ async function refresh(view){const result=await call(state.view==='users'?'list_bound_users':stateTool,{});state={...state,...result,view:view||state.view};if(state.view==='users')users();else if(state.view==='onboarding')onboarding();else workspace();schedulePoll();}
  function schedulePoll(){
   clearTimeout(pollTimer);
   if(panel||summaryCard||keyEntry||choosingScope||!state.connection?.ready||pollCount>=16)return;
@@ -187,5 +187,5 @@ export function createUI({call,send,expand,panel=false}){
    if(d.action==='expand'){if(expand)await expand();}
   });
  });
- return {render(value){message('');scopeMode=null;choosingScope=false;entryConnection=value.entry==='connection';summaryCard=value.view==='onboarding'&&value.onboarding?.phase==='ready';pollCount=0;pollGeneration++;state={...state,...value};if(value.view==='users')users();else if(value.view==='onboarding')onboarding();else workspace();schedulePoll();},error:message,fail(text){clearTimeout(pollTimer);pollGeneration++;revision++;$('#header-actions').innerHTML='';message('');main.innerHTML=`<h1>卡片暂时无法显示</h1><p class="muted">${esc(text)}</p><button data-action="reload">重新加载</button>`;}};
+ return {render(value){message('');scopeMode=null;choosingScope=false;entryConnection=value.entry==='connection';summaryCard=value.view==='onboarding'&&value.onboarding?.phase==='ready';pollCount=0;pollGeneration++;state={...state,...value};if(value.view==='users')users();else if(value.view==='onboarding')onboarding();else workspace();schedulePoll();},error:message,fail(text){clearTimeout(pollTimer);pollGeneration++;revision++;$('#header-actions').innerHTML='';message('');main.innerHTML=`<h1>${esc(failureTitle)}</h1><p class="muted">${esc(text)}</p><button data-action="reload">重新加载</button>`;}};
 }

@@ -13,7 +13,9 @@ const startedAt=String(Date.now()/1000);
 const source=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const {root,version}=await pinRuntime(source);
 const resource='ui://openviking/personal.html';
-const server=new McpServer({name:'openviking-codex-app',version});
+const workspaceResource='ui://openviking/workspace.html';
+const logo=await readFile(path.join(root,'assets/openviking.svg'));
+const server=new McpServer({name:'openviking-codex-app',title:'OpenViking',version,icons:[{src:`data:image/svg+xml;base64,${logo.toString('base64')}`,mimeType:'image/svg+xml'}]});
 function backend(action,args={}){return new Promise((resolve,reject)=>{
  const child=execFile(process.env.OV_APP_PYTHON||'python3',[path.join(root,'scripts/app_backend.py'),action],{cwd:root,env:{...process.env,OV_APP_RUNTIME_ID:runtimeId,OV_APP_STARTED_AT:startedAt},timeout:60000,maxBuffer:4*1024*1024},(err,out)=>{
   try{const result=JSON.parse(out);if(err||result.error)reject(new Error(result.error||'操作未完成。'));else resolve(result);}catch{const code=err?.code==='ENOENT'?'PYTHON_UNAVAILABLE':err?.killed?'BACKEND_TIMEOUT':'BACKEND_FAILED';const message=code==='PYTHON_UNAVAILABLE'?'未找到 Python 3，请安装后重新打开 Codex。':code==='BACKEND_TIMEOUT'?'连接响应超时，请稍后重试。':'接入服务未能运行，请重新打开 Codex 后再试。';reject(Object.assign(new Error(message),{code}));}
@@ -63,5 +65,13 @@ tool('tree_directory','读取公有云目录树，最多两层、200 个节点�
 tool('read_file','读取当前公有云 Key 有权访问的文件，每次最多 200 行，支持原生图片内容。',{uri:z.string(),offset:z.number().int().nonnegative().default(0)},'read',{appOnly:true,readOnly:true});
 tool('publish_report','将依据真实资料生成并已在 OV 归档读回的报告发布到个人工作台。不能把模板或推测当成实际进展。',{id:z.string(),kind:z.enum(['progress','daily','weekly','insight']),title:z.string(),period:z.string(),body:z.string().max(200000),coverage:z.string(),sources:z.array(z.object({label:z.string(),uri:z.string()})).min(1)},'publish_report',{view:'workspace'});
 tool('open_workspace_panel','用户要求打开工作台时取得本地 URL，随后必须用 open_in_codex placement=right 打开，不展示工作台卡片；不要用于接入引导。',{},'panel');
+// Host navigation only: ordinary model calls must not create a workspace card.
+registerAppTool(server,'open_workspace',{
+ title:'OpenViking',description:'从左侧导航打开 OpenViking 工作台。',inputSchema:{},
+ annotations:{readOnlyHint:true,destructiveHint:false,openWorldHint:false},
+ _meta:{ui:{resourceUri:workspaceResource,visibility:['app']},'openai/ui':{entrypoints:[{type:'global'}]}},
+},async()=>{try{return output({...await backend('workspace_state'),view:'workspace'});}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}});
+tool('get_workspace_state','只读加载工作台连接与报告，不推进接入流程。',{},'workspace_state',{appOnly:true,readOnly:true});
+registerAppResource(server,'OpenViking 工作台',workspaceResource,{},async()=>({contents:[{uri:workspaceResource,mimeType:RESOURCE_MIME_TYPE,text:await readFile(path.join(root,'assets/workspace.html'),'utf8'),_meta:{ui:{csp:{connectDomains:[],resourceDomains:[]}},'openai/ui':{availableDisplayModes:['fullscreen'],preferredDisplayMode:'fullscreen'}}}]}));
 registerAppResource(server,'OpenViking',resource,{},async()=>({contents:[{uri:resource,mimeType:RESOURCE_MIME_TYPE,text:await readFile(path.join(root,'assets/app.html'),'utf8'),_meta:{ui:{prefersBorder:true,csp:{connectDomains:[],resourceDomains:[]}}}}]}));
 await server.connect(new StdioServerTransport());

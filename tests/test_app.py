@@ -6,6 +6,16 @@ class AppTests(unittest.TestCase):
  setUp=fixtures.PersonalTests.setUp
  tearDown=fixtures.PersonalTests.tearDown
  plan=fixtures.PersonalTests.plan
+ def test_workspace_read_does_not_advance_onboarding(self):
+  cloud.save('reports.json',[{'title':'Saved report'}])
+  with patch.object(app_backend.bindings,'finish_if_ready') as finish, patch.object(app_backend.onboarding,'state') as flow:
+   result=app_backend.dispatch('workspace_state',{})
+   self.assertTrue(result['connection']['ready'])
+   self.assertEqual(result['reports'],[{'title':'Saved report'}])
+   self.assertNotIn('api_key',json.dumps(result))
+   finish.assert_not_called();flow.assert_not_called()
+  with patch.object(app_backend.connection,'status',return_value={'canReuse':False,'ready':False}):
+   self.assertEqual(app_backend.dispatch('workspace_state',{})['reports'],[])
  def test_new_connection_card_hides_previous_workspace_without_resetting_it(self):
   cloud.save('workspace.json',{'works':[{'title':'existing work'}]})
   result=app_backend.dispatch('onboarding_view',{'step':'connection'})

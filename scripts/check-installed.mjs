@@ -19,11 +19,20 @@ try{
  assert.equal(tools.find(t=>t.name==='show_workspace')._meta,undefined);
  assert.equal(tools.find(t=>t.name==='list_bound_users')._meta,undefined);
  assert.ok(cardTools.includes('show_bound_users'));
+ const sidebar=tools.find(t=>t.name==='open_workspace');
+ assert.equal(sidebar.title,'OpenViking');
+ assert.deepEqual(sidebar._meta['openai/ui'].entrypoints,[{type:'global'}]);
+ assert.deepEqual(sidebar._meta.ui.visibility,['app']);
+ const workspace=await client.readResource({uri:sidebar._meta.ui.resourceUri});
+ assert.equal(workspace.contents[0].mimeType,'text/html;profile=mcp-app');
+ const workspaceState=await client.callTool({name:'get_workspace_state',arguments:{}});
+ assert.ok(!workspaceState.isError);
+ assert.equal(workspaceState.structuredContent.onboarding,undefined);
  const users=await client.callTool({name:'list_bound_users',arguments:{}});
  assert.ok(!users.isError);assert.equal(users.structuredContent.view,undefined);
  const result=await client.callTool({name:'show_onboarding',arguments:{step:'connection'}});
  assert.ok(!result.isError);assert.equal(result.structuredContent.view,'onboarding');assert.equal(result.structuredContent.connection.ready,false);
  const resource=await client.readResource({uri:'ui://openviking/personal.html'});
  assert.equal(resource.contents[0].mimeType,'text/html;profile=mcp-app');
- console.log(JSON.stringify({installedTransport:'passed',minimalPath:'passed',version:result.structuredContent.runtimeVersion,cardTools,connectionCardPayload:'passed',htmlResource:'passed',codexNativeRendering:'not_verified'},null,2));
+ console.log(JSON.stringify({installedTransport:'passed',minimalPath:'passed',version:result.structuredContent.runtimeVersion,cardTools,connectionCardPayload:'passed',htmlResource:'passed',globalEntrypoint:'passed',independentWorkspaceResource:'passed',codexNativeRendering:'not_verified'},null,2));
 }finally{await client.close();}

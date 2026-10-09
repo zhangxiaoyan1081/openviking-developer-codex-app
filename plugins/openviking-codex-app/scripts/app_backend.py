@@ -12,6 +12,9 @@ def state():
  return {**empty,'scope':cloud.load('scope.json') if flow['scopeCurrent'] else None,'plan':cloud.load('review.json') if flow['scopeCurrent'] else None,'workspace':cloud.load('workspace.json',{'works':[]}), 'reports':cloud.load('reports.json',[]),'onboarding':flow,'binding':bindings.finish_if_ready(flow)}
 
 def dispatch(action,value):
+ if action=='workspace_state':
+  c=connection.status()
+  return {'configured':c['canReuse'],'connection':c,'reports':cloud.load('reports.json',[]) if c['ready'] else []}
  if action=='state':return state()
  if action=='begin_binding':bindings.begin();return state()
  if action=='binding_setup':bindings.choose_setup(value['revision'],value['mode']);return state()

@@ -1,6 +1,6 @@
 # OpenViking Codex App 分发与桌面入口
 
-日期：2026-09-21
+日期：2026-10-09
 状态：当前实现核查与发布建议；仓库已公开；未部署远程 MCP、未提交商店审核。
 项目：https://github.com/zhangxiaoyan1081/openviking-developer-codex-app
 
@@ -31,9 +31,15 @@ Workspace 内发布与公共目录发布的边界，参见 [官方打包与分�
 
 ## 桌面左侧入口
 
-截至本次核查，插件清单支持图标、名称、描述、启动提示与 MCP/技能，但没有发现可以往用户截图所示的左侧一级导航注册页面的公开字段或接口。因此不能承诺让 OpenViking 与 New chat、Plugins 并列出现。
+v0.2.8 新增本地原型：MCP 工具 `open_workspace` 声明 `_meta["openai/ui"].entrypoints=[{type:"global"}]`，绑定独立的 `ui://openviking/workspace.html` 资源。标题为 OpenViking，服务图标沿用仓库 SVG。该工具仅对 App/宿主可见，普通任务不应调用它产生卡片。
 
-官方 UI 能力是在对话内展示组件，并由宿主决定显示方式；参见 [插件 UI 文档](https://developers.openai.com/plugins/build/chatgpt-ui)。现有插件支持对话工作台与右侧面板。可把“OpenViking 工作台”任务固定在左侧 Pinned，作为长期入口；这是固定任务，不是插件注册了一级导航。本文未自动创建或固定任务。
+入口不以公开上架为前提。官方提供本地市场安装与测试路径；当前本机客户端代码也包含从本地 MCP 工具发现全局入口的路径。这能支持本地原型开发，但不等于真实左栏渲染已经验收。官方说明见 [Plugin Extensions](https://developers.openai.com/plugins/build/extensions) 与 [本地插件打包](https://developers.openai.com/plugins/build/plugins)。此前“没有公开侧栏接口”的判断已过时。
+
+在仓库目录执行 `python3 install.py --companion-only`，仅更新 App；重启桌面客户端重新加载入口。若当前宿主支持并展示此入口，点击左侧 OpenViking 即可打开目录、工作进展、报告。原有对话指令仍使用右侧浏览器面板，不改变其交互。
+
+页面在 MCP Apps 初始化后主动读取只读工作台状态，不依赖前置模型调用或 tool-result 通知。未连接时引导在对话接入；已连接时直接浏览。打开/刷新页面不会自动复用连接、确认协作模式、上传历史或完成绑定。工作台只浏览报告，生成与接续仍由用户在对话发起。
+
+本机已安装 v0.2.8；通过已安装 transport 与新启动 Codex app-server 验证入口声明和 HTML 资源读取。原型验收包含协议元数据、资源读取、无 tool-result 独立启动、目录和 L1/文件预览、Session 概览、报告浏览、重开、错误重试。模拟宿主测试不代表真实 Codex UI 验收。当前桌面自动化工具禁止操作 Codex 主窗口，因此左栏实际出现与点击加载需人工确认；未通过修改客户端或绕过限制验证。
 
 ## 验证范围
 

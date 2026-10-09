@@ -30,8 +30,11 @@ try:
    assert not x.get('toolsError'), 'Codex failed to load App tools'
    names=list(x.get('tools',{}))
    assert 'show_onboarding' in names and 'publish_work' in names, 'App tools missing'
-   print(json.dumps({'codexToolRegistry':'passed','serverInfo':x.get('serverInfo'),'toolNames':names},ensure_ascii=False))
- r=call(3,'mcpServer/resource/read',{'server':'openviking-codex-app','uri':'ui://openviking/personal.html'})
+   entry=x['tools'].get('open_workspace',{})
+   assert entry.get('_meta',{}).get('openai/ui',{}).get('entrypoints')==[{'type':'global'}], 'Global entrypoint missing from Codex inventory'
+   assert entry.get('_meta',{}).get('ui',{}).get('visibility')==['app'], 'Navigation must remain hidden from model calls'
+   print(json.dumps({'codexToolRegistry':'passed','globalEntrypoint':'passed','version':x.get('serverInfo',{}).get('version'),'toolCount':len(names)},ensure_ascii=False))
+ r=call(3,'mcpServer/resource/read',{'server':'openviking-codex-app','uri':'ui://openviking/workspace.html'})
  assert any(x.get('mimeType')=='text/html;profile=mcp-app' for x in r.get('contents',[])), 'Card resource missing'
  print(json.dumps({'codexHostResourceRead':bool(r),'responseFields':list(r),'nativeRendering':'not_verified'}))
 finally:

@@ -9,7 +9,10 @@ await writeFile(`${destination}/assets/app.html`,template.replace('/* APP */',()
 const panel=await build({entryPoints:['src/panel.mjs'],bundle:true,metafile:true,platform:'browser',format:'iife',target:'es2022',minify:true,charset:'utf8',write:false});
 await writeFile(`${destination}/assets/index.html`,template.replace('/* APP */',()=>panel.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')));
 
-const packages=new Set(Object.keys({...server.metafile.inputs,...browser.metafile.inputs,...panel.metafile.inputs}).map(p=>p.match(/^node_modules\/((?:@[^/]+\/)?[^/]+)/)?.[1]).filter(Boolean));
+const workspace=await build({entryPoints:['src/workspace-app.mjs'],bundle:true,metafile:true,platform:'browser',format:'iife',target:'es2022',minify:true,charset:'utf8',write:false});
+await writeFile(`${destination}/assets/workspace.html`,template.replace('/* APP */',()=>workspace.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')).replace(/[ \t]+$/gm,''));
+
+const packages=new Set(Object.keys({...server.metafile.inputs,...browser.metafile.inputs,...panel.metafile.inputs,...workspace.metafile.inputs}).map(p=>p.match(/^node_modules\/((?:@[^/]+\/)?[^/]+)/)?.[1]).filter(Boolean));
 const notices=[];
 for(const name of [...packages].sort()){
  const pkg=JSON.parse(await readFile(`node_modules/${name}/package.json`,'utf8'));
